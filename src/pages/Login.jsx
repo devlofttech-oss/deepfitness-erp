@@ -95,9 +95,20 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center mt-8 text-xs text-on-surface-variant opacity-70">
-          Powered by Deep Fitness ERP &middot; Firebase
-        </p>
+        <div className="mt-8 flex flex-col items-center gap-1 opacity-70">
+          <p className="text-center text-xs text-on-surface-variant">
+            Developed by DevLoft Tech
+          </p>
+          <a 
+            href="https://www.devlofttech.com/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-primary dark:text-amber-100 hover:text-primary/80 dark:hover:text-amber-50 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-[14px]">language</span>
+            Visit Website
+          </a>
+        </div>
       </div>
     </div>
   )

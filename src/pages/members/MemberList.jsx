@@ -231,7 +231,7 @@ export default function MemberList() {
                           )}
                           <Link
                             to={`/members/${member.id}`}
-                            className="text-primary hover:text-primary/80 font-medium text-sm transition-colors"
+                            className="bg-primary/10 text-primary dark:bg-indigo-500/20 dark:text-indigo-300 hover:bg-primary/20 dark:hover:bg-indigo-500/30 px-3 py-1.5 rounded-lg font-medium text-sm transition-colors"
                           >
                             View Profile
                           </Link>
