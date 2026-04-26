@@ -1,5 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import DashboardLayout from './components/layout/DashboardLayout';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MemberList from './pages/members/MemberList';
 import AddMember from './pages/members/AddMember';
@@ -20,10 +22,31 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
+// Private Route Wrapper
+const PrivateRoute = ({ children }) => {
+  const { currentUser } = useAuth();
+  const location = useLocation();
+
+  if (!currentUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/*" element={<DashboardLayout />}>
+      <Route path="/login" element={<Login />} />
+      
+      <Route 
+        path="/*" 
+        element={
+          <PrivateRoute>
+            <DashboardLayout />
+          </PrivateRoute>
+        }
+      >
         <Route index element={<Dashboard />} />
 
         {/* Members */}

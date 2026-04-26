@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useFrappeAuth } from 'frappe-react-sdk'
+import { useAuth } from '../context/AuthContext'
 import { LogIn } from 'lucide-react'
 
 export default function Login() {
@@ -8,7 +8,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, currentUser } = useFrappeAuth()
+  const { login, currentUser } = useAuth()
   const navigate = useNavigate()
 
   // If already logged in, redirect
@@ -22,9 +22,10 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login({ username: email, password })
+      await login(email, password)
       navigate('/', { replace: true })
     } catch (err) {
+      console.error(err);
       setError(err?.message || 'Invalid credentials. Please try again.')
     } finally {
       setLoading(false)
@@ -86,7 +87,7 @@ export default function Login() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: 'var(--space-6)', fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-          Powered by ERPNext &middot; Frappe Cloud
+          Powered by Firebase
         </p>
       </div>
     </div>

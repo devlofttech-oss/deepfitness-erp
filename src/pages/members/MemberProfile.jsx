@@ -7,6 +7,7 @@ export default function MemberProfile() {
   const { id } = useParams();
   const [member, setMember] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '' });
@@ -23,6 +24,11 @@ export default function MemberProfile() {
         const paymentsData = await getCollection('payments', [{ field: 'memberId', op: '==', value: id }]);
         const sortedPayments = paymentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
         setPayments(sortedPayments);
+
+        // Fetch attendance
+        const attendanceData = await getCollection('attendance', [{ field: 'memberId', op: '==', value: id }]);
+        const sortedAttendance = attendanceData.sort((a, b) => new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0));
+        setAttendance(sortedAttendance);
       } catch (error) {
         console.error("Error fetching data", error);
       } finally {
@@ -124,14 +130,14 @@ export default function MemberProfile() {
               <span className="material-symbols-outlined text-secondary">trending_up</span>
               <h3 className="font-h3 text-h3 text-on-surface">Quick Stats</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 gap-4">
                <div className="flex flex-col gap-1 p-3 bg-surface-container rounded-lg">
-                 <span className="text-xs text-on-surface-variant font-medium">Visits This Month</span>
-                 <span className="text-xl font-bold text-on-surface">12</span>
+                 <span className="text-xs text-on-surface-variant font-medium">Total Visits</span>
+                 <span className="text-xl font-bold text-on-surface">{attendance.length}</span>
                </div>
                <div className="flex flex-col gap-1 p-3 bg-surface-container rounded-lg">
                  <span className="text-xs text-on-surface-variant font-medium">Lifetime Value</span>
-                 <span className="text-xl font-bold text-on-surface">$450</span>
+                 <span className="text-xl font-bold text-on-surface">₹{payments.reduce((sum, p) => sum + Number(p.amount || 0), 0).toLocaleString('en-IN')}</span>
                </div>
             </div>
           </div>
@@ -164,6 +170,40 @@ export default function MemberProfile() {
                       <span className="font-bold text-emerald-600 dark:text-emerald-400 text-lg">₹{Number(payment.amount || 0).toLocaleString('en-IN')}</span>
                       <span className="text-xs bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-full font-medium">{payment.paymentMode || 'Cash'}</span>
                       <span className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-200 dark:border-emerald-800/50">Paid</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Attendance History Section */}
+          <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)]">
+            <h3 className="font-h3 text-h3 text-on-surface mb-6">Attendance History</h3>
+            
+            {attendance.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-on-surface-variant">
+                <span className="material-symbols-outlined text-4xl opacity-50 mb-2">history</span>
+                <p>No attendance records found.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {attendance.map(record => (
+                  <div key={record.id} className="flex items-center gap-4 p-3 rounded-lg bg-surface-container border border-outline-variant/30">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                      <span className="material-symbols-outlined">how_to_reg</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-on-surface">
+                        {new Date(record.timestamp || record.date).toLocaleDateString('en-IN', { 
+                          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                        })}
+                      </span>
+                      <span className="text-sm text-on-surface-variant">
+                        {new Date(record.timestamp || record.date).toLocaleTimeString('en-IN', { 
+                          hour: '2-digit', minute: '2-digit' 
+                        })}
+                      </span>
                     </div>
                   </div>
                 ))}
