@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useDarkMode } from '../../hooks/useDarkMode';
+import logoImage from '../../assets/logo.png';
 
 export default function Sidebar() {
   const { isDarkMode, setLightMode, setDarkMode } = useDarkMode();
@@ -13,9 +14,7 @@ export default function Sidebar() {
     <nav className="peer hidden md:flex flex-col items-start gap-4 fixed left-4 top-4 bottom-4 w-[72px] hover:w-56 z-50 transition-all duration-300 group">
       {/* Logo */}
       <div className="w-14 group-hover:w-full h-14 bg-white dark:bg-slate-900 rounded-full group-hover:rounded-2xl flex items-center justify-center group-hover:justify-start group-hover:px-4 shadow-sm shrink-0 transition-all duration-300 overflow-hidden">
-        <svg className="w-6 h-6 text-slate-900 dark:text-white shrink-0" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M4 4h4v16H4V4zm12 0h4v16h-4V4zm-6 4h4v8h-4V8z" transform="rotate(45 12 12)"></path>
-        </svg>
+        <img src={logoImage} alt="Logo" className="w-8 h-8 object-contain shrink-0" />
         <span className="font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap max-w-0 group-hover:max-w-[200px] group-hover:ml-3 overflow-hidden">Deep Fitness</span>
       </div>
       {/* Nav Links Pill */}

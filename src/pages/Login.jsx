@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogIn } from 'lucide-react'
+import logoImage from '../assets/logo.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -37,7 +38,7 @@ export default function Login() {
       <div className="bg-surface-container-lowest dark:bg-slate-950 w-full max-w-md p-8 md:p-10 rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.4)] border border-outline-variant/30 flex flex-col items-center">
         
         <div className="w-40 h-40 mb-6 flex items-center justify-center">
-          <img src="/src/assets/logo.png" alt="Deep Fitness Logo" className="w-full h-full object-contain" />
+          <img src={logoImage} alt="Deep Fitness Logo" className="w-full h-full object-contain" />
         </div>
         
         <h1 className="text-2xl font-bold text-on-surface text-center mb-1">Deep Fitness ERP</h1>
