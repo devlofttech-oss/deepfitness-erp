@@ -36,7 +36,7 @@ export default function Topbar() {
   return (
     <header className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-md text-purple-900 dark:text-purple-400 font-['Plus_Jakarta_Sans'] text-sm sticky top-4 z-40 mx-4 md:mx-gutter lg:mx-container-margin md:ml-0 mt-4 mb-4 border border-slate-200/50 dark:border-slate-800/50 shadow-sm rounded-full flex justify-between items-center h-16 px-6">
       <div className="flex items-center gap-6">
-        <div className="hidden text-lg font-bold tracking-tight text-slate-900 dark:text-white">Nexus ERP</div>
+        <div className="hidden text-lg font-bold tracking-tight text-slate-900 dark:text-white">Deep Fitness ERP</div>
         <div className="relative w-64">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
           <input className="w-full pl-10 pr-4 py-2 bg-slate-100/50 border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400" placeholder="Search..." type="text" />
