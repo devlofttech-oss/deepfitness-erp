@@ -27,6 +27,7 @@ export default function MemberList() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState(null); // { rows, headers }
   const fileInputRef = useRef(null);
@@ -48,6 +49,37 @@ export default function MemberList() {
   };
 
   // ── Excel Import ──────────────────────────────────────────────────────────
+
+  // Converts Excel serial numbers and common string formats → YYYY-MM-DD
+  function parseDate(val) {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number') {
+      // Excel date serial (days since 1900-01-01, with leap-year bug offset)
+      const d = new Date(Math.round((val - 25569) * 864e5));
+      return d.toISOString().split('T')[0];
+    }
+    const s = String(val).trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already YYYY-MM-DD
+    // DD-MM-YYYY or DD/MM/YYYY
+    const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    // MM-DD-YYYY fallback via native Date
+    const parsed = new Date(s);
+    if (!isNaN(parsed)) return parsed.toISOString().split('T')[0];
+    return s;
+  }
+
+  // Case-insensitive column lookup — tries each key variant
+  function col(row, ...keys) {
+    for (const k of keys) {
+      for (const attempt of [k, k.toLowerCase(), k.toUpperCase()]) {
+        if (row[attempt] !== undefined && row[attempt] !== '') return row[attempt];
+      }
+    }
+    return '';
+  }
+
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -66,7 +98,6 @@ export default function MemberList() {
       }
     };
     reader.readAsBinaryString(file);
-    // Reset input so same file can be selected again
     e.target.value = '';
   };
 
@@ -77,29 +108,41 @@ export default function MemberList() {
     try {
       for (const row of importPreview.rows) {
         try {
-          // Normalize common column name variants
-          const name   = row['Name'] || row['name'] || row['Member Name'] || row['member_name'] || '';
-          const phone  = String(row['Phone'] || row['phone'] || row['Mobile'] || row['mobile'] || row['Phone Number'] || '');
-          const email  = row['Email'] || row['email'] || '';
-          const plan   = row['Plan'] || row['plan'] || row['Plan Name'] || row['planName'] || '';
-          const expiry = row['Expiry Date'] || row['expiryDate'] || row['Expiry'] || row['expiry'] || '';
-          const activeFrom = row['Active From'] || row['planActiveFrom'] || row['Start Date'] || '';
-          const status = row['Status'] || row['status'] || (expiry && new Date(expiry) < new Date() ? 'Expired' : 'Active');
-          const gender = row['Gender'] || row['gender'] || '';
-          const dob    = row['DOB'] || row['dob'] || row['Date of Birth'] || '';
+          const name       = col(row, 'NAME', 'Name', 'Member Name', 'name');
+          const phone      = String(col(row, 'MOBILE NUMBER', 'Mobile Number', 'Phone', 'Mobile', 'phone') || '');
+          const admDate    = parseDate(col(row, 'ADMISSION DATE', 'Admission Date', 'Join Date', 'joinDate', 'Active From', 'Start Date'));
+          const dueDate    = parseDate(col(row, 'DUE DATE', 'Due Date', 'Expiry Date', 'Expiry', 'expiryDate'));
+          const membership = col(row, 'MEMBERSHIP', 'Membership', 'Plan', 'Plan Name', 'planName');
+          const totalFees  = Number(col(row, 'Total fees', 'Total Fees', 'TOTAL FEES', 'totalFees'))  || 0;
+          const paidFees   = Number(col(row, 'Fees paid', 'Fees Paid', 'FEES PAID', 'paidFees'))      || 0;
+          const balFees    = Number(col(row, 'Balance fees', 'Balance Fees', 'BALANCE FEES', 'balanceFees')) || 0;
+          const payMode    = col(row, 'Payment mode', 'Payment Mode', 'PAYMENT MODE', 'paymentMode') || 'Cash';
+          const statusRaw  = col(row, 'STATUS', 'Status', 'status');
+          const email      = col(row, 'Email', 'EMAIL', 'email');
 
           if (!name) { failed++; continue; }
 
+          // Prefix with "Gym - " since these are gym-category members
+          const planName = membership ? `Gym - ${String(membership).trim()}` : '';
+
+          // Derive status from due date if not explicitly set
+          const effectiveStatus = dueDate && new Date(dueDate) < new Date()
+            ? 'Expired'
+            : (statusRaw ? String(statusRaw).trim() : 'Active');
+
           await createDocument('members', {
             name: String(name).trim(),
-            phone: phone.trim(),
+            phone: String(phone).trim(),
             email: String(email).trim(),
-            planName: String(plan).trim(),
-            expiryDate: expiry ? String(expiry).trim() : '',
-            planActiveFrom: activeFrom ? String(activeFrom).trim() : '',
-            status: String(status).trim() || 'Active',
-            gender: String(gender).trim(),
-            dob: String(dob).trim(),
+            planName,
+            joinDate: admDate,
+            planActiveFrom: admDate,
+            expiryDate: dueDate,
+            totalFees,
+            paidFees,
+            balanceFees: balFees,
+            paymentMode: String(payMode).trim(),
+            status: effectiveStatus,
             importedAt: new Date().toISOString(),
           });
           success++;
@@ -134,11 +177,21 @@ export default function MemberList() {
     );
   };
 
+  const CATEGORIES = ['All', 'Gym', 'Zumba', 'Kids Dance'];
+  const CATEGORY_META = {
+    Gym:          { icon: 'fitness_center', color: 'text-violet-600',  bg: 'bg-violet-50',  activeBg: 'bg-violet-600' },
+    Zumba:        { icon: 'music_note',     color: 'text-pink-600',    bg: 'bg-pink-50',    activeBg: 'bg-pink-500' },
+    'Kids Dance': { icon: 'child_care',     color: 'text-amber-600',   bg: 'bg-amber-50',   activeBg: 'bg-amber-500' },
+  };
+
   const filtered = members.filter(m => {
     const term = searchTerm.toLowerCase();
     const matchSearch = !term || m.name?.toLowerCase().includes(term) || m.phone?.includes(term);
-    const matchStatus = filterStatus === 'All' || m.status === filterStatus;
-    return matchSearch && matchStatus;
+    const days = daysUntilExpiry(m.expiryDate);
+    const effectiveStatus = days !== null && days < 0 ? 'Expired' : 'Active';
+    const matchStatus = filterStatus === 'All' || effectiveStatus === filterStatus;
+    const matchCategory = filterCategory === 'All' || m.planName?.startsWith(filterCategory);
+    return matchSearch && matchStatus && matchCategory;
   });
 
   const expiringCount = members.filter(m => {
@@ -221,24 +274,32 @@ export default function MemberList() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-surface-container-low/60">
                     <tr>
-                      {['Name', 'Phone', 'Plan', 'Expiry Date', 'Status'].map(h => (
-                        <th key={h} className="p-3 font-semibold text-on-surface-variant text-xs uppercase tracking-wider">{h}</th>
+                      {['Name', 'Mobile', 'Membership', 'Admission', 'Due Date', 'Total', 'Paid', 'Balance', 'Status'].map(h => (
+                        <th key={h} className="p-3 font-semibold text-on-surface-variant text-xs uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {importPreview.rows.slice(0, 10).map((row, i) => {
-                      const name   = row['Name'] || row['name'] || row['Member Name'] || '';
-                      const phone  = row['Phone'] || row['phone'] || row['Mobile'] || row['mobile'] || '';
-                      const plan   = row['Plan'] || row['plan'] || row['Plan Name'] || '';
-                      const expiry = row['Expiry Date'] || row['expiryDate'] || row['Expiry'] || '';
-                      const status = row['Status'] || row['status'] || '';
+                      const name       = col(row, 'NAME', 'Name', 'Member Name') || '';
+                      const phone      = col(row, 'MOBILE NUMBER', 'Mobile Number', 'Phone', 'Mobile') || '';
+                      const membership = col(row, 'MEMBERSHIP', 'Membership', 'Plan', 'Plan Name') || '';
+                      const admDate    = parseDate(col(row, 'ADMISSION DATE', 'Admission Date', 'Join Date'));
+                      const dueDate    = parseDate(col(row, 'DUE DATE', 'Due Date', 'Expiry Date', 'Expiry'));
+                      const totalF     = col(row, 'Total fees', 'Total Fees', 'TOTAL FEES') || '—';
+                      const paidF      = col(row, 'Fees paid', 'Fees Paid', 'FEES PAID') || '—';
+                      const balF       = col(row, 'Balance fees', 'Balance Fees', 'BALANCE FEES') || '—';
+                      const status     = col(row, 'STATUS', 'Status') || '';
                       return (
                         <tr key={i} className="border-t border-outline-variant/10 hover:bg-surface-container/30">
-                          <td className="p-3 font-medium text-on-surface">{String(name) || <em className="text-rose-400">Missing</em>}</td>
+                          <td className="p-3 font-medium text-on-surface">{name || <em className="text-rose-400">Missing</em>}</td>
                           <td className="p-3 text-on-surface-variant">{String(phone)}</td>
-                          <td className="p-3 text-on-surface-variant">{String(plan)}</td>
-                          <td className="p-3 text-on-surface-variant">{String(expiry)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(membership)}</td>
+                          <td className="p-3 text-on-surface-variant">{admDate}</td>
+                          <td className="p-3 text-on-surface-variant">{dueDate}</td>
+                          <td className="p-3 text-on-surface-variant">{String(totalF)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(paidF)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(balF)}</td>
                           <td className="p-3 text-on-surface-variant">{String(status)}</td>
                         </tr>
                       );
@@ -276,7 +337,43 @@ export default function MemberList() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Category Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {CATEGORIES.map(cat => {
+          const meta = CATEGORY_META[cat];
+          const isActive = filterCategory === cat;
+          const count = cat === 'All'
+            ? members.length
+            : members.filter(m => m.planName?.startsWith(cat)).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilterCategory(cat)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                isActive
+                  ? cat === 'All'
+                    ? 'bg-primary text-on-primary border-primary shadow-sm'
+                    : `${meta.activeBg} text-white border-transparent shadow-sm`
+                  : `bg-surface-container-lowest border-outline-variant/30 text-on-surface-variant hover:bg-surface-container`
+              }`}
+            >
+              {meta && (
+                <span className={`material-symbols-outlined text-[16px] ${isActive ? 'text-white' : meta.color}`}>
+                  {meta.icon}
+                </span>
+              )}
+              {cat}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-surface-container text-on-surface-variant'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search + Status Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 flex-1 min-w-[220px] max-w-xs shadow-sm">
           <span className="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
@@ -350,6 +447,7 @@ export default function MemberList() {
                   const days = daysUntilExpiry(member.expiryDate);
                   const isExpiringSoon = days !== null && days >= 0 && days <= 7;
                   const isExpired = days !== null && days < 0;
+                  const effectiveStatus = isExpired ? 'Expired' : 'Active';
 
                   return (
                     <tr key={member.id} className="border-b border-outline-variant/20 hover:bg-surface-container/40 transition-colors">
@@ -385,7 +483,7 @@ export default function MemberList() {
                           )}
                         </div>
                       </td>
-                      <td className="p-4">{getStatusBadge(member.status)}</td>
+                      <td className="p-4">{getStatusBadge(effectiveStatus)}</td>
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-2">
                           {isExpiringSoon && member.phone && (

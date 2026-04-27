@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [expiringSoonList, setExpiringSoonList] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAllAttendance, setShowAllAttendance] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -166,10 +167,7 @@ export default function Dashboard() {
       </div>
 
       {/* Today's Attendance Section */}
-      <div
-        className="bg-surface-container-lowest rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] overflow-hidden cursor-pointer hover:shadow-[0_14px_40px_rgba(207,196,255,0.2)] transition-all duration-200"
-        onClick={() => navigate('/checkin')}
-      >
+      <div className="bg-surface-container-lowest rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-secondary-container/30 flex items-center justify-center">
@@ -186,14 +184,20 @@ export default function Dashboard() {
             <span className="bg-secondary-container/30 text-secondary font-bold text-lg px-4 py-1.5 rounded-full">
               {loading ? '...' : stats.dailyAttendance}
             </span>
-            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">arrow_forward</span>
+            <button
+              onClick={() => navigate('/checkin')}
+              className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface border border-outline-variant/30 px-3 py-1.5 rounded-lg hover:bg-surface-container transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">login</span>
+              Check In
+            </button>
           </div>
         </div>
 
         {!loading && todayAttendance.length > 0 ? (
           <div className="divide-y divide-outline-variant/10">
             {todayAttendance.slice(0, 5).map((a) => (
-              <div key={a.id} className="flex items-center gap-4 px-5 py-3 hover:bg-surface-container/30 transition-colors">
+              <div key={a.id} className="flex items-center gap-4 px-5 py-3">
                 <div className="w-8 h-8 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-sm shrink-0">
                   {a.memberName?.charAt(0) || '?'}
                 </div>
@@ -210,9 +214,12 @@ export default function Dashboard() {
               </div>
             ))}
             {todayAttendance.length > 5 && (
-              <div className="px-5 py-3 text-center text-xs text-primary font-medium">
-                +{todayAttendance.length - 5} more — click to view all
-              </div>
+              <button
+                onClick={() => setShowAllAttendance(true)}
+                className="w-full px-5 py-3 text-center text-xs text-primary font-medium hover:bg-primary/5 transition-colors"
+              >
+                View all {todayAttendance.length} check-ins today
+              </button>
             )}
           </div>
         ) : !loading ? (
@@ -227,6 +234,56 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* All Today's Attendance Modal */}
+      {showAllAttendance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
+              <div>
+                <h2 className="text-lg font-bold text-on-surface">Today's Check-ins</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  {' · '}<span className="font-semibold text-secondary">{todayAttendance.length} total</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAllAttendance(false)}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-outline-variant/10 custom-scrollbar">
+              {todayAttendance.map((a, i) => (
+                <div key={a.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="w-7 h-7 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                    {a.memberName?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-on-surface truncate">{a.memberName || '—'}</div>
+                  </div>
+                  <div className="text-xs text-on-surface-variant shrink-0">
+                    {new Date(a.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded-full shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                    In
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-outline-variant/20">
+              <button
+                onClick={() => setShowAllAttendance(false)}
+                className="w-full py-2 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expiring Soon Alert */}
       {!loading && expiringSoonList.length > 0 && (

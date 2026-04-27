@@ -3,13 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { createDocument } from '../../firebase/db';
 import toast from 'react-hot-toast';
 
-const DEFAULT_PLANS = [
-  { name: '1 Month Basic',  durationDays: 30,  amount: 1500 },
-  { name: '3 Months Pro',   durationDays: 90,  amount: 4000 },
-  { name: '6 Months Elite', durationDays: 180, amount: 7000 },
-  { name: '1 Year Master',  durationDays: 365, amount: 12000 },
-];
-
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -22,7 +15,7 @@ export default function AddMember() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const [plans, setPlans] = useState(DEFAULT_PLANS);
+  const [planCategories, setPlanCategories] = useState([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -30,36 +23,41 @@ export default function AddMember() {
     email: '',
     joinDate: today,
     planActiveFrom: today,
-    planName: DEFAULT_PLANS[0].name,
-    durationDays: DEFAULT_PLANS[0].durationDays,
-    amount: DEFAULT_PLANS[0].amount,
+    planName: '',
+    durationDays: 30,
+    totalFees: 0,
+    paidNow: '',
     paymentMode: 'Cash',
-    expiryDate: addDays(today, DEFAULT_PLANS[0].durationDays),
-    status: 'Active',
+    expiryDate: addDays(today, 30),
   });
+
+  const balanceFees = Math.max(0, Number(formData.totalFees || 0) - Number(formData.paidNow || 0));
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const doc = await import('../../firebase/db').then(m => m.getDocument('settings', 'general'));
-        if (doc && doc.plans && doc.plans.length > 0) {
-          setPlans(doc.plans);
-          setFormData(prev => ({
-            ...prev,
-            planName: doc.plans[0].name,
-            durationDays: doc.plans[0].durationDays,
-            amount: doc.plans[0].amount,
-            expiryDate: addDays(prev.planActiveFrom, doc.plans[0].durationDays),
-          }));
+        if (doc && doc.categories && doc.categories.length > 0) {
+          setPlanCategories(doc.categories);
+          const firstCat = doc.categories[0];
+          const firstPlan = firstCat?.plans?.[0];
+          if (firstPlan) {
+            setFormData(prev => ({
+              ...prev,
+              planName: `${firstCat.name} - ${firstPlan.name}`,
+              durationDays: firstPlan.durationDays,
+              totalFees: firstPlan.amount,
+              expiryDate: addDays(prev.planActiveFrom, firstPlan.durationDays),
+            }));
+          }
         }
       } catch (error) {
-        console.error("Failed to load plans", error);
+        console.error('Failed to load plans', error);
       }
     };
     fetchSettings();
   }, []);
 
-  // Recalculate expiry whenever planActiveFrom or durationDays changes
   useEffect(() => {
     setFormData(prev => ({
       ...prev,
@@ -72,24 +70,33 @@ export default function AddMember() {
   };
 
   const handlePlanChange = (e) => {
-    const plan = plans.find(p => p.name === e.target.value);
-    if (!plan) return;
-    setFormData(prev => ({
-      ...prev,
-      planName: plan.name,
-      durationDays: plan.durationDays,
-      amount: plan.amount,
-    }));
+    const fullName = e.target.value;
+    for (const cat of planCategories) {
+      const plan = cat.plans.find(p => `${cat.name} - ${p.name}` === fullName);
+      if (plan) {
+        setFormData(prev => ({
+          ...prev,
+          planName: fullName,
+          durationDays: plan.durationDays,
+          totalFees: plan.amount,
+          paidNow: '',
+        }));
+        return;
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.phone) { toast.error('Phone number is required'); return; }
 
+    const totalFees  = Number(formData.totalFees || 0);
+    const paidAmount = Number(formData.paidNow   || 0);
+    const balance    = Math.max(0, totalFees - paidAmount);
+
     try {
       setLoading(true);
 
-      // 1. Create Member
       const memberDoc = await createDocument('members', {
         name: formData.name,
         phone: formData.phone,
@@ -99,9 +106,11 @@ export default function AddMember() {
         planActiveFrom: formData.planActiveFrom,
         expiryDate: formData.expiryDate,
         status: 'Active',
+        totalFees,
+        paidFees: paidAmount,
+        balanceFees: balance,
       });
 
-      // 2. Auto-create Payment record
       await createDocument('payments', {
         memberId: memberDoc.id,
         memberName: formData.name,
@@ -109,14 +118,17 @@ export default function AddMember() {
         planName: formData.planName,
         planActiveFrom: formData.planActiveFrom,
         expiryDate: formData.expiryDate,
-        amount: Number(formData.amount),
+        totalFees,
+        paidAmount,
+        balanceFees: balance,
+        amount: paidAmount,
         paymentMode: formData.paymentMode,
         date: new Date().toISOString(),
         status: 'Paid',
       });
 
       toast.success('Member added & payment recorded!');
-      navigate(`/members/${memberDoc.id}`); // Go to profile to print QR
+      navigate(`/members/${memberDoc.id}`);
     } catch (error) {
       console.error(error);
       toast.error('Failed to add member');
@@ -128,6 +140,9 @@ export default function AddMember() {
   const daysUntilExpiry = Math.round(
     (new Date(formData.expiryDate) - new Date(formData.planActiveFrom)) / (1000 * 60 * 60 * 24)
   );
+
+  const totalFeesNum = Number(formData.totalFees || 0);
+  const paidNowNum   = Number(formData.paidNow   || 0);
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto w-full">
@@ -145,11 +160,10 @@ export default function AddMember() {
         </div>
       </div>
 
-      {/* Form Card */}
       <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)]">
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
-          {/* ── Personal Info ── */}
+          {/* Personal Details */}
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-on-surface-variant mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">person</span>
@@ -157,34 +171,28 @@ export default function AddMember() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">
-                  Full Name <span className="text-error">*</span>
-                </label>
+                <label className="font-medium text-sm text-on-surface">Full Name <span className="text-error">*</span></label>
                 <input
                   required
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                   placeholder="e.g. Rahul Sharma"
+                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                 />
               </div>
-
               <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">
-                  Phone Number <span className="text-error">*</span>
-                </label>
+                <label className="font-medium text-sm text-on-surface">Phone Number <span className="text-error">*</span></label>
                 <input
                   required
                   type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                   placeholder="e.g. 9876543210"
+                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                 />
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm text-on-surface">Email (optional)</label>
                 <input
@@ -192,11 +200,10 @@ export default function AddMember() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                   placeholder="e.g. rahul@email.com"
+                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
                 />
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm text-on-surface">Date of Joining</label>
                 <input
@@ -212,14 +219,15 @@ export default function AddMember() {
 
           <div className="border-t border-outline-variant/20" />
 
-          {/* ── Plan & Payment ── */}
+          {/* Plan & Payment */}
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-on-surface-variant mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">card_membership</span>
               Plan & Payment
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-4">
 
+              {/* Plan dropdown */}
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm text-on-surface">Membership Plan</label>
                 <select
@@ -228,83 +236,134 @@ export default function AddMember() {
                   onChange={handlePlanChange}
                   className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none appearance-none"
                 >
-                  {plans.map(p => (
-                    <option key={p.name} value={p.name}>{p.name} — ₹{Number(p.amount).toLocaleString()}</option>
+                  {planCategories.map(cat => (
+                    <optgroup key={cat.id} label={cat.name}>
+                      {cat.plans.map(p => {
+                        const fullName = `${cat.name} - ${p.name}`;
+                        return (
+                          <option key={fullName} value={fullName}>
+                            {p.name}{p.amount > 0 ? ` — ₹${Number(p.amount).toLocaleString('en-IN')}` : ''}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   ))}
                 </select>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">Amount (₹)</label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
-                />
+              {/* Fees row */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Total Fees — read-only */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-sm text-on-surface">Total Fees (₹)</label>
+                  <div className="w-full px-3 py-2.5 bg-surface-container border border-outline-variant/20 rounded-lg text-on-surface-variant text-sm font-semibold select-none">
+                    {totalFeesNum > 0 ? `₹${totalFeesNum.toLocaleString('en-IN')}` : '—'}
+                  </div>
+                  <span className="text-xs text-on-surface-variant">Plan price</span>
+                </div>
+
+                {/* Paid Fees — editable */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-sm text-on-surface">
+                    Paid Fees (₹) <span className="text-error">*</span>
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    name="paidNow"
+                    value={formData.paidNow}
+                    onChange={handleChange}
+                    min="0"
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 bg-surface-container border border-primary/50 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none text-sm"
+                  />
+                  <span className="text-xs text-on-surface-variant">Paying now</span>
+                </div>
+
+                {/* Balance Fees — auto */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-sm text-on-surface">Balance Fees (₹)</label>
+                  <div className={`w-full px-3 py-2.5 rounded-lg border text-sm font-semibold ${
+                    balanceFees > 0
+                      ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400'
+                      : 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
+                  }`}>
+                    ₹{balanceFees.toLocaleString('en-IN')}
+                  </div>
+                  <span className="text-xs text-on-surface-variant">Remaining dues</span>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">Plan Active From</label>
-                <input
-                  type="date"
-                  name="planActiveFrom"
-                  value={formData.planActiveFrom}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">Expiry Date</label>
-                <input
-                  type="date"
-                  name="expiryDate"
-                  value={formData.expiryDate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="font-medium text-sm text-on-surface">Payment Mode</label>
-                <select
-                  name="paymentMode"
-                  value={formData.paymentMode}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none appearance-none"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Card">Card</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cheque">Cheque</option>
-                </select>
+              {/* Dates + Payment Mode */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="font-medium text-sm text-on-surface">Plan Active From</label>
+                  <input
+                    type="date"
+                    name="planActiveFrom"
+                    value={formData.planActiveFrom}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="font-medium text-sm text-on-surface">Expiry Date</label>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={formData.expiryDate}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="font-medium text-sm text-on-surface">Payment Mode</label>
+                  <select
+                    name="paymentMode"
+                    value={formData.paymentMode}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none appearance-none"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Expiry Preview Banner */}
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center gap-4">
-            <span className="material-symbols-outlined text-primary text-2xl">event_available</span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-on-surface">
-                Plan Active: <span className="text-primary">{formData.planActiveFrom}</span>
-                &nbsp;→&nbsp;
-                <span className="text-primary">{formData.expiryDate}</span>
-              </p>
-              <p className="text-xs text-on-surface-variant mt-0.5">
-                {daysUntilExpiry} days • A payment of ₹{Number(formData.amount).toLocaleString()} ({formData.paymentMode}) will be recorded automatically.
+          {/* Summary Banner */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-start gap-4">
+            <span className="material-symbols-outlined text-primary text-2xl mt-0.5">receipt_long</span>
+            <div className="flex-1 flex flex-col gap-1">
+              <p className="text-sm font-semibold text-on-surface">Payment Summary</p>
+              <div className="flex gap-6 mt-1 text-sm">
+                <div>
+                  <span className="text-on-surface-variant">Total:</span>{' '}
+                  <span className="font-semibold text-on-surface">₹{totalFeesNum.toLocaleString('en-IN')}</span>
+                </div>
+                <div>
+                  <span className="text-on-surface-variant">Paying:</span>{' '}
+                  <span className="font-semibold text-primary">₹{paidNowNum.toLocaleString('en-IN')}</span>
+                </div>
+                <div>
+                  <span className="text-on-surface-variant">Balance:</span>{' '}
+                  <span className={`font-semibold ${balanceFees > 0 ? 'text-rose-500' : 'text-green-600'}`}>
+                    ₹{balanceFees.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Plan: {formData.planActiveFrom} → {formData.expiryDate} ({daysUntilExpiry} days) · {formData.paymentMode}
               </p>
             </div>
           </div>
 
           <div className="border-t border-outline-variant/30 pt-6 flex justify-end gap-3">
-            <Link
-              to="/members"
-              className="px-5 py-2.5 rounded-lg text-on-surface-variant font-medium hover:bg-surface-container transition-colors"
-            >
+            <Link to="/members" className="px-5 py-2.5 rounded-lg text-on-surface-variant font-medium hover:bg-surface-container transition-colors">
               Cancel
             </Link>
             <button
