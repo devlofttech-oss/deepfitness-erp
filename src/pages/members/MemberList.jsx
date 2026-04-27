@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
-import { getCollection } from '../../firebase/db';
+import { useState, useEffect, useRef } from 'react';
+import { getCollection, createDocument } from '../../firebase/db';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 function daysUntilExpiry(expiryDate) {
   if (!expiryDate) return null;
@@ -12,7 +14,6 @@ function daysUntilExpiry(expiryDate) {
 }
 
 function buildWhatsAppLink(phone, name, expiryDate) {
-  // Clean phone: remove spaces, dashes; add country code if needed
   const cleaned = String(phone).replace(/\D/g, '');
   const withCountry = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
   const message = encodeURIComponent(
@@ -26,6 +27,9 @@ export default function MemberList() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState(null); // { rows, headers }
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchMembers();
@@ -42,6 +46,78 @@ export default function MemberList() {
       setLoading(false);
     }
   };
+
+  // ── Excel Import ──────────────────────────────────────────────────────────
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (rows.length === 0) { toast.error('No data found in the file.'); return; }
+        setImportPreview({ rows, fileName: file.name });
+      } catch (err) {
+        toast.error('Failed to read Excel file. Please use .xlsx or .xls format.');
+        console.error(err);
+      }
+    };
+    reader.readAsBinaryString(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importPreview) return;
+    setImporting(true);
+    let success = 0, failed = 0;
+    try {
+      for (const row of importPreview.rows) {
+        try {
+          // Normalize common column name variants
+          const name   = row['Name'] || row['name'] || row['Member Name'] || row['member_name'] || '';
+          const phone  = String(row['Phone'] || row['phone'] || row['Mobile'] || row['mobile'] || row['Phone Number'] || '');
+          const email  = row['Email'] || row['email'] || '';
+          const plan   = row['Plan'] || row['plan'] || row['Plan Name'] || row['planName'] || '';
+          const expiry = row['Expiry Date'] || row['expiryDate'] || row['Expiry'] || row['expiry'] || '';
+          const activeFrom = row['Active From'] || row['planActiveFrom'] || row['Start Date'] || '';
+          const status = row['Status'] || row['status'] || (expiry && new Date(expiry) < new Date() ? 'Expired' : 'Active');
+          const gender = row['Gender'] || row['gender'] || '';
+          const dob    = row['DOB'] || row['dob'] || row['Date of Birth'] || '';
+
+          if (!name) { failed++; continue; }
+
+          await createDocument('members', {
+            name: String(name).trim(),
+            phone: phone.trim(),
+            email: String(email).trim(),
+            planName: String(plan).trim(),
+            expiryDate: expiry ? String(expiry).trim() : '',
+            planActiveFrom: activeFrom ? String(activeFrom).trim() : '',
+            status: String(status).trim() || 'Active',
+            gender: String(gender).trim(),
+            dob: String(dob).trim(),
+            importedAt: new Date().toISOString(),
+          });
+          success++;
+        } catch {
+          failed++;
+        }
+      }
+      toast.success(`Imported ${success} member${success !== 1 ? 's' : ''}${failed > 0 ? ` (${failed} skipped)` : ''}!`);
+      setImportPreview(null);
+      fetchMembers();
+    } catch (err) {
+      toast.error('Import failed. Please try again.');
+      console.error(err);
+    } finally {
+      setImporting(false);
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const getStatusBadge = (status) => {
     if (status === 'Active') {
@@ -78,13 +154,32 @@ export default function MemberList() {
           <h1 className="font-h1 text-h1 text-on-surface">Members</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant">Manage your gym members, plans, and statuses.</p>
         </div>
-        <Link
-          to="/members/add"
-          className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[20px]">person_add</span>
-          New Member
-        </Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Import Excel */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium border border-outline-variant/40 bg-surface-container-lowest hover:bg-surface-container text-on-surface transition-colors shadow-sm text-sm"
+            title="Import members from Excel (.xlsx / .xls)"
+          >
+            <span className="material-symbols-outlined text-[18px] text-emerald-600">upload_file</span>
+            Import Excel
+          </button>
+
+          <Link
+            to="/members/add"
+            className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[20px]">person_add</span>
+            New Member
+          </Link>
+        </div>
       </div>
 
       {/* Expiring Soon Alert */}
@@ -98,6 +193,86 @@ export default function MemberList() {
             </span>{' '}
             button in their row.
           </p>
+        </div>
+      )}
+
+      {/* ── Import Preview Modal ── */}
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
+              <div>
+                <h2 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-500">upload_file</span>
+                  Import Preview
+                </h2>
+                <p className="text-sm text-on-surface-variant mt-1">{importPreview.fileName} — {importPreview.rows.length} records found</p>
+              </div>
+              <button onClick={() => setImportPreview(null)} className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant">
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-4">
+              <p className="text-sm text-on-surface-variant mb-3">
+                The following members will be added. Existing members will not be duplicated automatically — please verify before confirming.
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-outline-variant/20">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-surface-container-low/60">
+                    <tr>
+                      {['Name', 'Phone', 'Plan', 'Expiry Date', 'Status'].map(h => (
+                        <th key={h} className="p-3 font-semibold text-on-surface-variant text-xs uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.rows.slice(0, 10).map((row, i) => {
+                      const name   = row['Name'] || row['name'] || row['Member Name'] || '';
+                      const phone  = row['Phone'] || row['phone'] || row['Mobile'] || row['mobile'] || '';
+                      const plan   = row['Plan'] || row['plan'] || row['Plan Name'] || '';
+                      const expiry = row['Expiry Date'] || row['expiryDate'] || row['Expiry'] || '';
+                      const status = row['Status'] || row['status'] || '';
+                      return (
+                        <tr key={i} className="border-t border-outline-variant/10 hover:bg-surface-container/30">
+                          <td className="p-3 font-medium text-on-surface">{String(name) || <em className="text-rose-400">Missing</em>}</td>
+                          <td className="p-3 text-on-surface-variant">{String(phone)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(plan)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(expiry)}</td>
+                          <td className="p-3 text-on-surface-variant">{String(status)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {importPreview.rows.length > 10 && (
+                <p className="text-xs text-on-surface-variant mt-2 text-center">
+                  Showing 10 of {importPreview.rows.length} records.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-5 border-t border-outline-variant/20">
+              <button
+                onClick={() => setImportPreview(null)}
+                className="px-4 py-2 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors shadow-sm flex items-center gap-2 disabled:opacity-70"
+              >
+                {importing ? (
+                  <><span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span> Importing...</>
+                ) : (
+                  <><span className="material-symbols-outlined text-[16px]">upload</span> Import {importPreview.rows.length} Members</>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -213,7 +388,6 @@ export default function MemberList() {
                       <td className="p-4">{getStatusBadge(member.status)}</td>
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-2">
-                          {/* WhatsApp button — shown when expiring within 7 days */}
                           {isExpiringSoon && member.phone && (
                             <a
                               href={buildWhatsAppLink(member.phone, member.name, member.expiryDate)}
@@ -222,7 +396,6 @@ export default function MemberList() {
                               title={`Send WhatsApp renewal reminder to ${member.name}`}
                               className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm animate-pulse hover:animate-none"
                             >
-                              {/* WhatsApp SVG icon */}
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" className="w-3.5 h-3.5">
                                 <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.737 5.469 2.026 7.769L0 32l8.476-2.003A15.944 15.944 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.279 13.279 0 01-6.77-1.848l-.484-.289-5.03 1.188 1.22-4.898-.317-.503A13.302 13.302 0 012.667 16C2.667 8.637 8.637 2.667 16 2.667S29.333 8.637 29.333 16 23.363 29.333 16 29.333zm7.306-9.984c-.4-.2-2.368-1.168-2.735-1.302-.368-.133-.636-.2-.904.2-.267.4-1.036 1.302-1.27 1.569-.234.267-.468.3-.868.1-.4-.2-1.688-.622-3.215-1.984-1.188-1.06-1.99-2.369-2.224-2.769-.234-.4-.025-.616.175-.815.181-.18.4-.468.601-.702.2-.233.267-.4.4-.667.134-.267.067-.5-.033-.7-.1-.2-.904-2.18-1.237-2.985-.326-.785-.657-.678-.904-.69l-.768-.013c-.267 0-.7.1-1.068.5-.367.4-1.403 1.37-1.403 3.344s1.437 3.878 1.637 4.145c.2.267 2.827 4.315 6.851 6.051.957.413 1.704.66 2.286.845.96.306 1.835.263 2.525.16.77-.115 2.368-.969 2.702-1.904.334-.936.334-1.737.234-1.904-.1-.167-.367-.267-.767-.467z"/>
                               </svg>

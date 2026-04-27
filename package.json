@@ -18,15 +18,18 @@
     "firebase": "^12.12.1",
     "framer-motion": "^12.38.0",
     "frappe-react-sdk": "^1.14.0",
+    "html5-qrcode": "^2.3.8",
     "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^1.8.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hot-toast": "^2.6.0",
     "react-is": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "recharts": "^3.8.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

@@ -116,7 +116,7 @@ export default function AddMember() {
       });
 
       toast.success('Member added & payment recorded!');
-      navigate('/members');
+      navigate(`/members/${memberDoc.id}`); // Go to profile to print QR
     } catch (error) {
       console.error(error);
       toast.error('Failed to add member');

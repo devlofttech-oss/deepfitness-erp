@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getCollection } from '../firebase/db';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid } from 'recharts';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ revenue: 0, monthlyRevenue: 0, activeMembers: 0, totalMembers: 0, dailyAttendance: 0, expiringSoon: 0 });
   const [chartData, setChartData] = useState({ revenueTrend: [], memberStatus: [], revenueByPlan: [] });
   const [recentActivity, setRecentActivity] = useState([]);
   const [expiringSoonList, setExpiringSoonList] = useState([]);
+  const [todayAttendance, setTodayAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +32,9 @@ export default function Dashboard() {
           .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
         // Today's check-ins
-        const todayCheckins = attendance.filter(a => new Date(a.timestamp).toDateString() === now.toDateString()).length;
+        const todayCheckins = attendance.filter(a => new Date(a.timestamp).toDateString() === now.toDateString());
+        todayCheckins.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setTodayAttendance(todayCheckins);
 
         // Expiring in next 7 days
         const in7days = new Date(); in7days.setDate(in7days.getDate() + 7);
@@ -40,7 +45,7 @@ export default function Dashboard() {
         });
         setExpiringSoonList(expiringSoon);
 
-        setStats({ revenue: totalRev, monthlyRevenue: monthlyRev, activeMembers: activeMembersCount, totalMembers: members.length, dailyAttendance: todayCheckins, expiringSoon: expiringSoon.length });
+        setStats({ revenue: totalRev, monthlyRevenue: monthlyRev, activeMembers: activeMembersCount, totalMembers: members.length, dailyAttendance: todayCheckins.length, expiringSoon: expiringSoon.length });
 
         // Revenue trend by date
         const groupedPayments = {};
@@ -136,10 +141,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={cardBase}>
+        {/* Daily Attendance — Clickable */}
+        <button
+          onClick={() => navigate('/checkin')}
+          className={`${cardBase} text-left cursor-pointer hover:shadow-[0_14px_40px_rgba(207,196,255,0.25)] hover:scale-[1.02] transition-all duration-200 group`}
+        >
           <div className="flex justify-between items-start">
-            <div className="p-3 bg-secondary-container/30 rounded-xl">
-              <span className="material-symbols-outlined text-secondary">how_to_reg</span>
+            <div className="p-3 bg-secondary-container/30 rounded-xl group-hover:bg-secondary-container/50 transition-colors">
+              <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>how_to_reg</span>
             </div>
             <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-label-caps text-label-caps bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-md text-xs">
               Today
@@ -148,8 +157,75 @@ export default function Dashboard() {
           <div>
             <div className="font-label-caps text-label-caps text-on-surface-variant mb-1 uppercase tracking-wider">Daily Attendance</div>
             <div className="font-stat-value text-stat-value text-on-surface">{loading ? '...' : stats.dailyAttendance}</div>
+            <div className="text-xs text-primary mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+              View check-ins
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* Today's Attendance Section */}
+      <div
+        className="bg-surface-container-lowest rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] overflow-hidden cursor-pointer hover:shadow-[0_14px_40px_rgba(207,196,255,0.2)] transition-all duration-200"
+        onClick={() => navigate('/checkin')}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-secondary-container/30 flex items-center justify-center">
+              <span className="material-symbols-outlined text-secondary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
+            </div>
+            <div>
+              <h3 className="font-h3 text-h3 text-on-surface">Today's Attendance</h3>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="bg-secondary-container/30 text-secondary font-bold text-lg px-4 py-1.5 rounded-full">
+              {loading ? '...' : stats.dailyAttendance}
+            </span>
+            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">arrow_forward</span>
           </div>
         </div>
+
+        {!loading && todayAttendance.length > 0 ? (
+          <div className="divide-y divide-outline-variant/10">
+            {todayAttendance.slice(0, 5).map((a) => (
+              <div key={a.id} className="flex items-center gap-4 px-5 py-3 hover:bg-surface-container/30 transition-colors">
+                <div className="w-8 h-8 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-sm shrink-0">
+                  {a.memberName?.charAt(0) || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-on-surface truncate">{a.memberName || '—'}</div>
+                </div>
+                <div className="text-xs text-on-surface-variant shrink-0">
+                  {new Date(a.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded-full shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                  Checked In
+                </span>
+              </div>
+            ))}
+            {todayAttendance.length > 5 && (
+              <div className="px-5 py-3 text-center text-xs text-primary font-medium">
+                +{todayAttendance.length - 5} more — click to view all
+              </div>
+            )}
+          </div>
+        ) : !loading ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-on-surface-variant">
+            <span className="material-symbols-outlined text-4xl opacity-30">event_busy</span>
+            <p className="text-sm">No check-ins recorded today yet.</p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-10 text-on-surface-variant text-sm gap-2">
+            <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+            Loading attendance...
+          </div>
+        )}
       </div>
 
       {/* Expiring Soon Alert */}
