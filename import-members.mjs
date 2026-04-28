@@ -11,14 +11,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyBhFXtvpjqXkUG4nlLfm6I_0w4GKWZYauk',
-  authDomain: 'devloft-projects.firebaseapp.com',
-  projectId: 'devloft-projects',
-  storageBucket: 'devloft-projects.firebasestorage.app',
-  messagingSenderId: '62866723697',
-  appId: '1:62866723697:web:3fccd19a1e5f2ac5f21cd0',
-};
 
 // ─── CHANGE THIS FOR EACH IMPORT ────────────────────────────────────────────
 const CATEGORY = 'Kids Dance';
