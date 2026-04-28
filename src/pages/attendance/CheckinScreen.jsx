@@ -8,38 +8,30 @@ const playBeep = (type) => {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    
+
+    const makeBeep = (freq, waveType, startAt, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = waveType;
+      osc.frequency.setValueAtTime(freq, startAt);
+      gain.gain.setValueAtTime(0.5, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.01, startAt + duration);
+      osc.start(startAt);
+      osc.stop(startAt + duration);
+    };
+
     if (type === 'success') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1000, ctx.currentTime);
-      gain.gain.setValueAtTime(0.5, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.2);
+      makeBeep(1000, 'sine', ctx.currentTime, 0.2);
+    } else if (type === 'warning') {
+      // Two mid-tone beeps — balance due, entry allowed
+      makeBeep(600, 'sine', ctx.currentTime, 0.25);
+      makeBeep(600, 'sine', ctx.currentTime + 0.35, 0.25);
     } else {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, ctx.currentTime); 
-      gain.gain.setValueAtTime(0.5, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      osc.start(ctx.currentTime);
-      
-      // double beep for error
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sawtooth';
-      osc2.frequency.setValueAtTime(150, ctx.currentTime + 0.3);
-      gain2.gain.setValueAtTime(0, ctx.currentTime);
-      gain2.gain.setValueAtTime(0.5, ctx.currentTime + 0.3);
-      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(ctx.currentTime + 0.3);
-      osc2.stop(ctx.currentTime + 0.6);
+      // Error buzz — two harsh beeps, stops at ~2.5 s
+      makeBeep(150, 'sawtooth', ctx.currentTime, 1.0);
+      makeBeep(150, 'sawtooth', ctx.currentTime + 1.2, 1.0);
     }
   } catch(e) {
     console.error('Audio beep failed', e);
@@ -108,12 +100,14 @@ export default function CheckinScreen() {
 
   const processCheckin = async (member) => {
     if (checkingIn) return;
-    
+
     if (member.status !== 'Active') {
       playBeep('error');
       toast.error(`${member.name} - Membership Expired! Please renew.`, { duration: 4000 });
       return;
     }
+
+    const hasBalance = member.balanceFees && Number(member.balanceFees) > 0;
 
     try {
       setCheckingIn(true);
@@ -121,15 +115,26 @@ export default function CheckinScreen() {
         memberId: member.id,
         memberName: member.name,
         timestamp: new Date().toISOString(),
-        status: member.status
+        status: member.status,
+        ...(hasBalance && { balanceFees: member.balanceFees }),
       };
 
       await createDocument('attendance', checkinRecord);
-      
-      playBeep('success');
-      setRecentCheckins(prev => [checkinRecord, ...prev].slice(0, 10)); // Keep last 10 in UI
-      toast.success(`${member.name} checked in successfully!`);
-      
+
+      if (hasBalance) {
+        playBeep('warning');
+        toast(`${member.name} checked in — Balance due: ₹${member.balanceFees}`, {
+          icon: '⚠️',
+          duration: 5000,
+          style: { background: '#b45309', color: '#fff' },
+        });
+        setRecentCheckins(prev => [{ ...checkinRecord, balanceDue: true }, ...prev].slice(0, 10));
+      } else {
+        playBeep('success');
+        toast.success(`${member.name} checked in successfully!`);
+        setRecentCheckins(prev => [checkinRecord, ...prev].slice(0, 10));
+      }
+
     } catch (error) {
       console.error(error);
       playBeep('error');
@@ -222,14 +227,19 @@ export default function CheckinScreen() {
               </div>
             ) : (
               recentCheckins.map((record, index) => (
-                <div key={index} className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 shadow-sm animate-in slide-in-from-top-2 fade-in duration-300">
+                <div key={index} className={`flex items-center justify-between p-4 rounded-xl border shadow-sm animate-in slide-in-from-top-2 fade-in duration-300 ${record.balanceDue ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700' : 'bg-surface-container-low border-outline-variant/20'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center justify-center">
-                       <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${record.balanceDue ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {record.balanceDue ? 'warning' : 'check_circle'}
+                      </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="font-bold text-on-surface text-lg">{record.memberName}</span>
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide uppercase">Active Member</span>
+                      {record.balanceDue
+                        ? <span className="text-xs text-amber-700 dark:text-amber-400 font-medium tracking-wide uppercase">Balance Due: ₹{record.balanceFees}</span>
+                        : <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide uppercase">Active Member</span>
+                      }
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
