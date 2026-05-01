@@ -375,7 +375,7 @@ export default function MemberList() {
 
       {/* Search + Status Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 flex-1 min-w-[220px] max-w-xs shadow-sm">
+        <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 flex-1 min-w-55 max-w-xs shadow-sm">
           <span className="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
           <input
             type="text"
@@ -453,7 +453,7 @@ export default function MemberList() {
                     <tr key={member.id} className="border-b border-outline-variant/20 hover:bg-surface-container/40 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold shrink-0">
                             {member.name?.charAt(0) || '?'}
                           </div>
                           <div>

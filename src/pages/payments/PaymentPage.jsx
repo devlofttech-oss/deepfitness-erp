@@ -313,7 +313,7 @@ export default function PaymentPage() {
                     : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
                 }`}>{selectedMember.status || 'Unknown'}</span>
               </div>
-              <div className="grid grid-cols-3 divide-x divide-outline-variant/20">
+              <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant/20">
                 <div className="px-4 py-3">
                   <div className="text-xs text-on-surface-variant mb-0.5">Current Plan</div>
                   <div className="text-sm font-medium text-on-surface truncate">{selectedMember.planName || '—'}</div>
@@ -399,7 +399,7 @@ export default function PaymentPage() {
               </div>
 
               {/* Fees Row */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Total Fees — read-only, fixed to plan price */}
                 <div className="flex flex-col gap-1.5">
                   <label className="font-medium text-sm text-on-surface">Total Fees (₹)</label>
@@ -519,7 +519,7 @@ export default function PaymentPage() {
               <p className="text-sm font-semibold text-on-surface">
                 Payment Summary
               </p>
-              <div className="flex gap-6 mt-1 text-sm">
+              <div className="flex flex-wrap gap-4 mt-1 text-sm">
                 <div>
                   <span className="text-on-surface-variant">Outstanding:</span>{' '}
                   <span className="font-semibold text-on-surface">₹{outstandingBase.toLocaleString('en-IN')}</span>

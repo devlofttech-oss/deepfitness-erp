@@ -252,7 +252,7 @@ export default function AddMember() {
               </div>
 
               {/* Fees row */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Total Fees — read-only */}
                 <div className="flex flex-col gap-1.5">
                   <label className="font-medium text-sm text-on-surface">Total Fees (₹)</label>
@@ -340,7 +340,7 @@ export default function AddMember() {
             <span className="material-symbols-outlined text-primary text-2xl mt-0.5">receipt_long</span>
             <div className="flex-1 flex flex-col gap-1">
               <p className="text-sm font-semibold text-on-surface">Payment Summary</p>
-              <div className="flex gap-6 mt-1 text-sm">
+              <div className="flex flex-wrap gap-4 mt-1 text-sm">
                 <div>
                   <span className="text-on-surface-variant">Total:</span>{' '}
                   <span className="font-semibold text-on-surface">₹{totalFeesNum.toLocaleString('en-IN')}</span>

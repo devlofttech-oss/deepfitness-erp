@@ -24,7 +24,7 @@ export default function Sidebar({ onExpandChange }) {
   };
 
   return (
-    <nav className={`hidden md:flex flex-col items-start gap-4 fixed left-4 top-4 bottom-4 z-50 transition-all duration-300 ${expanded ? 'w-56' : 'w-[72px]'}`}>
+    <nav className={`hidden md:flex flex-col items-start gap-4 fixed left-4 top-4 bottom-4 z-50 transition-all duration-300 ${expanded ? 'w-56' : 'w-18'}`}>
       
       {/* Logo & Toggle */}
       <div className={`h-14 bg-white dark:bg-slate-900 flex items-center shadow-sm shrink-0 transition-all duration-300 overflow-hidden ${

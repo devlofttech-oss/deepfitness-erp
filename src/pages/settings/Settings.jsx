@@ -374,8 +374,8 @@ export default function Settings() {
             {/* Plans list for active category */}
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-3 min-h-0">
               {editCategories[activeCatTab]?.plans.map((plan, planIdx) => (
-                <div key={plan.id} className="p-4 bg-surface-container rounded-xl border border-outline-variant/30 flex gap-3 items-end">
-                  <div className="flex-1 flex flex-col gap-1.5">
+                <div key={plan.id} className="p-4 bg-surface-container rounded-xl border border-outline-variant/30 flex flex-wrap gap-2 sm:gap-3 items-end">
+                  <div className="w-full sm:flex-1 flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-on-surface-variant">Plan Name</label>
                     <input
                       type="text"
@@ -384,7 +384,7 @@ export default function Settings() {
                       className="w-full px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-md text-on-surface outline-none focus:border-primary text-sm"
                     />
                   </div>
-                  <div className="w-24 flex flex-col gap-1.5">
+                  <div className="w-20 sm:w-24 flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-on-surface-variant">Days</label>
                     <input
                       type="number"
@@ -393,7 +393,7 @@ export default function Settings() {
                       className="w-full px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-md text-on-surface outline-none focus:border-primary text-sm"
                     />
                   </div>
-                  <div className="w-32 flex flex-col gap-1.5">
+                  <div className="w-28 sm:w-32 flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-on-surface-variant">Amount (₹)</label>
                     <input
                       type="number"
@@ -405,7 +405,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() => removePlan(activeCatTab, planIdx)}
-                    className="h-[38px] w-[38px] rounded-md bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors flex-shrink-0"
+                    className="h-9.5 w-9.5 rounded-md bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors shrink-0"
                   >
                     <span className="material-symbols-outlined text-[18px]">delete</span>
                   </button>

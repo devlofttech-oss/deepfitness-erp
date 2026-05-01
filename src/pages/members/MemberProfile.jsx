@@ -80,10 +80,10 @@ function AttendanceCalendar({ attendance }) {
 
 function ConfirmModal({ title, message, confirmLabel = 'Delete', confirmClass = 'bg-rose-600 hover:bg-rose-700 text-white', onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <div className="flex items-start gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-rose-600 text-[20px]">warning</span>
           </div>
           <div>
@@ -301,13 +301,13 @@ export default function MemberProfile() {
       {/* ── Header Profile Card ── */}
       <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="w-24 h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-4xl font-bold shadow-inner">
+        <div className="flex items-center gap-4 md:gap-6 relative z-10">
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-3xl md:text-4xl font-bold shadow-inner shrink-0">
             {member.name?.charAt(0) || '?'}
           </div>
-          <div className="flex flex-col gap-1">
-            <h1 className="font-h2 text-h2 text-on-surface">{member.name}</h1>
-            <div className="flex items-center gap-4 text-on-surface-variant text-sm mt-1">
+          <div className="flex flex-col gap-1 min-w-0">
+            <h1 className="font-h2 text-h2 text-on-surface wrap-break-word">{member.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant text-sm mt-1">
               <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">call</span> {member.phone}</span>
               {member.joinDate && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">calendar_month</span> Joined {member.joinDate}</span>}
             </div>
@@ -434,11 +434,11 @@ export default function MemberProfile() {
                       </span>
                       {payment.notes && <span className="text-xs text-on-surface-variant italic">{payment.notes}</span>}
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className="font-bold text-emerald-600 text-lg">₹{Number(payment.amount || 0).toLocaleString('en-IN')}</span>
                       <span className="text-xs bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-full font-medium">{payment.paymentMode || 'Cash'}</span>
                     </div>
-                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <div className="flex flex-col gap-1.5 shrink-0">
                       <button
                         onClick={() => openEditPayment(payment)}
                         title="Edit payment"
@@ -485,10 +485,10 @@ export default function MemberProfile() {
             ) : attendanceTab === 'calendar' ? (
               <AttendanceCalendar attendance={attendance} />
             ) : (
-              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="flex flex-col gap-2 max-h-75 overflow-y-auto pr-2 custom-scrollbar">
                 {attendance.map(record => (
                   <div key={record.id} className="flex items-center gap-3 p-3 rounded-lg bg-surface-container border border-outline-variant/30">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>how_to_reg</span>
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
@@ -502,7 +502,7 @@ export default function MemberProfile() {
                     <button
                       onClick={() => setDeletingAttendanceId(record.id)}
                       title="Delete record"
-                      className="w-7 h-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-colors flex-shrink-0"
+                      className="w-7 h-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-colors shrink-0"
                     >
                       <span className="material-symbols-outlined text-[15px]">delete</span>
                     </button>
@@ -583,7 +583,7 @@ export default function MemberProfile() {
                 {/* Fees */}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-3">Fees</p>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-on-surface">Total Fees (₹)</label>
                       <input type="number" min="0" value={editForm.totalFees} onChange={e => setEditForm(p => ({ ...p, totalFees: e.target.value }))}

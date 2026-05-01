@@ -167,14 +167,14 @@ export default function CheckinScreen() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Side: Scanner */}
-        <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col justify-center min-h-[400px]">
+        <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col justify-center min-h-100">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-primary">qr_code_scanner</span>
             <h3 className="font-h3 text-h3 text-on-surface">QR Scanner</h3>
           </div>
           
           <div className="rounded-xl overflow-hidden border-2 border-outline-variant/30 mb-6 bg-black flex-1 relative">
-            <div id="reader" className="w-full h-full min-h-[300px]"></div>
+            <div id="reader" className="w-full h-full min-h-75"></div>
             {/* HTML5 QR code adds its own UI, but we can override some styles if needed */}
             <style>{`
               #reader__scan_region { background: #000; }
