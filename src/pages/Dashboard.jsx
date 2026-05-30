@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCollection } from '../firebase/db';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend } from 'recharts';
+
+const todayISO = () => new Date().toISOString().split('T')[0];
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ revenue: 0, monthlyRevenue: 0, activeMembers: 0, totalMembers: 0, dailyAttendance: 0, expiringSoon: 0 });
-  const [chartData, setChartData] = useState({ revenueTrend: [], memberStatus: [], revenueByPlan: [] });
+  const [stats, setStats] = useState({ revenue: 0, monthlyRevenue: 0, activeMembers: 0, totalMembers: 0, dailyAttendance: 0, expiringSoon: 0, totalExpenses: 0, monthlyExpenses: 0, netProfit: 0 });
+  const [chartData, setChartData] = useState({ revenueTrend: [], memberStatus: [], revenueByPlan: [], revVsExp: [] });
   const [recentActivity, setRecentActivity] = useState([]);
   const [expiringSoonList, setExpiringSoonList] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState([]);
@@ -17,10 +19,11 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const [members, payments, attendance] = await Promise.all([
+        const [members, payments, attendance, expenses] = await Promise.all([
           getCollection('members'),
           getCollection('payments'),
-          getCollection('attendance')
+          getCollection('attendance'),
+          getCollection('expenses'),
         ]);
 
         const now = new Date();
@@ -32,9 +35,18 @@ export default function Dashboard() {
           .filter(p => { const d = new Date(p.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); })
           .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-        // Today's check-ins
-        const todayCheckins = attendance.filter(a => new Date(a.timestamp).toDateString() === now.toDateString());
-        todayCheckins.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // Expenses
+        const totalExp = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+        const monthlyExp = expenses
+          .filter(e => { const d = new Date(e.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); })
+          .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+        // Today's check-ins — support both new (date/checkInTime) and old (timestamp) schema
+        const today = todayISO();
+        const todayCheckins = attendance.filter(a =>
+          a.date === today || new Date(a.checkInTime || a.timestamp || 0).toDateString() === now.toDateString()
+        );
+        todayCheckins.sort((a, b) => new Date(b.checkInTime || b.timestamp || 0) - new Date(a.checkInTime || a.timestamp || 0));
         setTodayAttendance(todayCheckins);
 
         // Expiring in next 7 days
@@ -46,7 +58,13 @@ export default function Dashboard() {
         });
         setExpiringSoonList(expiringSoon);
 
-        setStats({ revenue: totalRev, monthlyRevenue: monthlyRev, activeMembers: activeMembersCount, totalMembers: members.length, dailyAttendance: todayCheckins.length, expiringSoon: expiringSoon.length });
+        setStats({
+          revenue: totalRev, monthlyRevenue: monthlyRev,
+          activeMembers: activeMembersCount, totalMembers: members.length,
+          dailyAttendance: todayCheckins.length, expiringSoon: expiringSoon.length,
+          totalExpenses: totalExp, monthlyExpenses: monthlyExp,
+          netProfit: monthlyRev - monthlyExp,
+        });
 
         // Revenue trend by date
         const groupedPayments = {};
@@ -66,15 +84,27 @@ export default function Dashboard() {
         payments.forEach(p => { planRev[p.planName] = (planRev[p.planName] || 0) + (Number(p.amount) || 0); });
         const planRevData = Object.keys(planRev).map(k => ({ name: k, value: planRev[k] }));
 
+        // Revenue vs Expense — last 6 months
+        const revVsExp = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const yr = d.getFullYear(); const mo = d.getMonth();
+          const label = d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+          const rev = payments.filter(p => { const pd = new Date(p.date); return pd.getMonth() === mo && pd.getFullYear() === yr; }).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+          const exp = expenses.filter(e => { const ed = new Date(e.date); return ed.getMonth() === mo && ed.getFullYear() === yr; }).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+          revVsExp.push({ name: label, Revenue: rev, Expenses: exp });
+        }
+
         setChartData({
           revenueTrend: revTrend.length > 0 ? revTrend : [{ name: 'Today', value: 0 }],
           memberStatus: memberStatusData,
-          revenueByPlan: planRevData
+          revenueByPlan: planRevData,
+          revVsExp,
         });
 
         const activities = [];
         payments.forEach(p => activities.push({ type: 'payment', title: `Payment ₹${p.amount}`, date: new Date(p.date), id: p.id }));
-        attendance.forEach(a => activities.push({ type: 'checkin', title: `${a.memberName} checked in`, date: new Date(a.timestamp), id: a.id }));
+        attendance.forEach(a => activities.push({ type: 'checkin', title: `${a.memberName} checked in`, date: new Date(a.checkInTime || a.timestamp || 0), id: a.id }));
         activities.sort((a, b) => b.date - a.date);
         setRecentActivity(activities.slice(0, 6));
       } catch (error) {
@@ -97,6 +127,7 @@ export default function Dashboard() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-stack-gap">
+        {/* Expense KPIs */}
         <div className={cardBase}>
           <div className="flex justify-between items-start">
             <div className="p-3 bg-primary-container/30 rounded-xl">
@@ -166,6 +197,50 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Expense KPI Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-stack-gap">
+        <div className={cardBase}>
+          <div className="flex justify-between items-start">
+            <div className="p-3 bg-rose-100 rounded-xl">
+              <span className="material-symbols-outlined text-rose-600">receipt_long</span>
+            </div>
+            <span className="text-rose-600 font-label-caps text-label-caps bg-rose-50 px-2 py-1 rounded-md text-xs">All Time</span>
+          </div>
+          <div>
+            <div className="font-label-caps text-label-caps text-on-surface-variant mb-1 uppercase tracking-wider">Total Expenses</div>
+            <div className="font-stat-value text-stat-value text-on-surface">{loading ? '...' : `₹${stats.totalExpenses.toLocaleString('en-IN')}`}</div>
+          </div>
+        </div>
+        <div className={cardBase}>
+          <div className="flex justify-between items-start">
+            <div className="p-3 bg-amber-100 rounded-xl">
+              <span className="material-symbols-outlined text-amber-600">trending_down</span>
+            </div>
+            <span className="text-amber-600 font-label-caps text-label-caps bg-amber-50 px-2 py-1 rounded-md text-xs">This Month</span>
+          </div>
+          <div>
+            <div className="font-label-caps text-label-caps text-on-surface-variant mb-1 uppercase tracking-wider">Monthly Expenses</div>
+            <div className="font-stat-value text-stat-value text-on-surface">{loading ? '...' : `₹${stats.monthlyExpenses.toLocaleString('en-IN')}`}</div>
+          </div>
+        </div>
+        <div className={cardBase}>
+          <div className="flex justify-between items-start">
+            <div className={`p-3 rounded-xl ${!loading && stats.netProfit >= 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+              <span className={`material-symbols-outlined ${!loading && stats.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {!loading && stats.netProfit >= 0 ? 'trending_up' : 'trending_down'}
+              </span>
+            </div>
+            <span className={`font-label-caps text-label-caps px-2 py-1 rounded-md text-xs ${!loading && stats.netProfit >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>This Month</span>
+          </div>
+          <div>
+            <div className="font-label-caps text-label-caps text-on-surface-variant mb-1 uppercase tracking-wider">Net Profit</div>
+            <div className={`font-stat-value text-stat-value ${!loading && stats.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {loading ? '...' : `${stats.netProfit >= 0 ? '' : '-'}₹${Math.abs(stats.netProfit).toLocaleString('en-IN')}`}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Today's Attendance Section */}
       <div className="bg-surface-container-lowest rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
@@ -205,7 +280,7 @@ export default function Dashboard() {
                   <div className="text-sm font-medium text-on-surface truncate">{a.memberName || '—'}</div>
                 </div>
                 <div className="text-xs text-on-surface-variant shrink-0">
-                  {new Date(a.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(a.checkInTime || a.timestamp || 0).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded-full shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
@@ -264,7 +339,7 @@ export default function Dashboard() {
                     <div className="text-sm font-medium text-on-surface truncate">{a.memberName || '—'}</div>
                   </div>
                   <div className="text-xs text-on-surface-variant shrink-0">
-                    {new Date(a.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(a.checkInTime || a.timestamp || 0).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded-full shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
@@ -306,7 +381,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-gap">
         <div className="lg:col-span-2 bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] flex flex-col">
           <h3 className="font-h3 text-h3 text-on-surface mb-6">Revenue Trend</h3>
-          <div className="flex-1 w-full min-h-[250px]">
+          <div className="flex-1 w-full min-h-62.5">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData.revenueTrend}>
                 <defs>
@@ -326,7 +401,7 @@ export default function Dashboard() {
 
         <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] flex flex-col">
           <h3 className="font-h3 text-h3 text-on-surface mb-4">Membership Status</h3>
-          <div className="flex-1 flex items-center justify-center relative min-h-[180px]">
+          <div className="flex-1 flex items-center justify-center relative min-h-45">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={chartData.memberStatus} innerRadius={55} outerRadius={75} paddingAngle={4} dataKey="value">
@@ -349,14 +424,32 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Revenue vs Expense Chart */}
+      <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] flex flex-col">
+        <h3 className="font-h3 text-h3 text-on-surface mb-6">Revenue vs Expenses (Last 6 Months)</h3>
+        <div className="w-full min-h-55">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData.revVsExp} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `₹${v}`} />
+              <Tooltip cursor={{ fill: 'rgba(124,58,237,0.04)' }} formatter={(v, n) => [`₹${v.toLocaleString('en-IN')}`, n]} />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+              <Bar dataKey="Revenue" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Expenses" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-stack-gap">
         <div className="lg:col-span-2 bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.1)] flex flex-col">
           <h3 className="font-h3 text-h3 text-on-surface mb-6">Revenue by Plan</h3>
           {chartData.revenueByPlan.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm opacity-60 min-h-[180px]">No payment data yet.</div>
+            <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm opacity-60 min-h-45">No payment data yet.</div>
           ) : (
-            <div className="flex-1 w-full min-h-[200px]">
+            <div className="flex-1 w-full min-h-50">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData.revenueByPlan}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />

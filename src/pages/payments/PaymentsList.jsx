@@ -1,7 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
+
+const PAGE_SIZE = 25;
+
+function paginationPages(page, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = [1];
+  if (page > 3) pages.push('...');
+  for (let p = Math.max(2, page - 1); p <= Math.min(total - 1, page + 1); p++) pages.push(p);
+  if (page < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
 import { Link } from 'react-router-dom';
 import { getCollection, updateDocument } from '../../firebase/db';
 import toast from 'react-hot-toast';
+import SendSMSModal from '../../components/messaging/SendSMSModal';
 
 const PAYMENT_MODES = ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Cheque'];
 const TABS = [
@@ -9,29 +22,12 @@ const TABS = [
   { id: 'dues', label: 'Dues & Expired', icon: 'warning' },
 ];
 
-const MESSAGE_TEMPLATES = [
-  {
-    id: 'expired',
-    label: 'Membership Expired',
-    icon: 'event_busy',
-    getText: (name, expiry) =>
-      `Hi ${name}! 👋\n\nYour *Deep Fitness* membership has expired on *${expiry || 'N/A'}*.\n\nRenew your plan today to continue your fitness journey! 💪\n\nVisit us or contact us to renew.\n\n— Deep Fitness Team`,
-  },
-  {
-    id: 'unpaid',
-    label: 'Payment Due',
-    icon: 'payments',
-    getText: (name) =>
-      `Hi ${name}! 👋\n\nThis is a friendly reminder that your *Deep Fitness* membership payment is due.\n\nPlease clear your dues at the earliest to avoid any interruption in your fitness sessions. 🏋️\n\n— Deep Fitness Team`,
-  },
-  {
-    id: 'renew',
-    label: 'Renewal Offer',
-    icon: 'card_membership',
-    getText: (name) =>
-      `Hi ${name}! 🌟\n\nWe miss you at *Deep Fitness*! Your membership has expired and we'd love to have you back.\n\n💥 *Special Renewal Offer* — visit us today for exclusive renewal discounts!\n\nDon't miss out. Your fitness journey awaits! 💪\n\n— Deep Fitness Team`,
-  },
-];
+function getSMSDefaultMessage(member) {
+  if (member.expiryDate && new Date(member.expiryDate) < new Date()) {
+    return `Hi ${member.name}! Your Deep Fitness membership expired on ${member.expiryDate}. Please renew to continue your fitness journey. Visit us today! - Deep Fitness`;
+  }
+  return `Hi ${member.name}! This is a reminder that your Deep Fitness membership payment is due. Please clear your dues at the earliest. - Deep Fitness`;
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -49,125 +45,6 @@ function daysUntilExpiry(expiryDate) {
   return Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
 }
 
-function buildWhatsAppLink(phone, message) {
-  const cleaned = String(phone).replace(/\D/g, '');
-  const withCountry = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
-  return `https://wa.me/${withCountry}?text=${encodeURIComponent(message)}`;
-}
-
-// ── Send Message Modal ───────────────────────────────────────────────────────
-function SendMessageModal({ member, onClose }) {
-  const [selectedTemplate, setSelectedTemplate] = useState(MESSAGE_TEMPLATES[0].id);
-  const [customMessage, setCustomMessage] = useState('');
-
-  const template = MESSAGE_TEMPLATES.find(t => t.id === selectedTemplate);
-  const generatedText = template ? template.getText(member.name, member.expiryDate) : '';
-  const finalMessage = customMessage || generatedText;
-
-  useEffect(() => {
-    setCustomMessage('');
-  }, [selectedTemplate]);
-
-  const handleSend = () => {
-    if (!member.phone) { toast.error('No phone number for this member'); return; }
-    const url = buildWhatsAppLink(member.phone, finalMessage);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" className="w-5 h-5 text-green-600">
-                <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.737 5.469 2.026 7.769L0 32l8.476-2.003A15.944 15.944 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.279 13.279 0 01-6.77-1.848l-.484-.289-5.03 1.188 1.22-4.898-.317-.503A13.302 13.302 0 012.667 16C2.667 8.637 8.637 2.667 16 2.667S29.333 8.637 29.333 16 23.363 29.333 16 29.333zm7.306-9.984c-.4-.2-2.368-1.168-2.735-1.302-.368-.133-.636-.2-.904.2-.267.4-1.036 1.302-1.27 1.569-.234.267-.468.3-.868.1-.4-.2-1.688-.622-3.215-1.984-1.188-1.06-1.99-2.369-2.224-2.769-.234-.4-.025-.616.175-.815.181-.18.4-.468.601-.702.2-.233.267-.4.4-.667.134-.267.067-.5-.033-.7-.1-.2-.904-2.18-1.237-2.985-.326-.785-.657-.678-.904-.69l-.768-.013c-.267 0-.7.1-1.068.5-.367.4-1.403 1.37-1.403 3.344s1.437 3.878 1.637 4.145c.2.267 2.827 4.315 6.851 6.051.957.413 1.704.66 2.286.845.96.306 1.835.263 2.525.16.77-.115 2.368-.969 2.702-1.904.334-.936.334-1.737.234-1.904-.1-.167-.367-.267-.767-.467z"/>
-              </svg>
-            </div>
-            <div>
-              <h2 className="font-bold text-on-surface">Send WhatsApp Message</h2>
-              <p className="text-xs text-on-surface-variant">To: {member.name} · {member.phone}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant">
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-4 p-5 flex-1 overflow-y-auto">
-          {/* Template Selector */}
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Choose Template</p>
-            <div className="flex flex-col gap-2">
-              {MESSAGE_TEMPLATES.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setSelectedTemplate(t.id)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
-                    selectedTemplate === t.id
-                      ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                      : 'border-outline-variant/30 hover:bg-surface-container'
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-[20px] ${
-                    selectedTemplate === t.id ? 'text-green-600' : 'text-on-surface-variant'
-                  }`} style={{ fontVariationSettings: "'FILL' 1" }}>{t.icon}</span>
-                  <span className={`text-sm font-medium ${
-                    selectedTemplate === t.id ? 'text-green-700 dark:text-green-400' : 'text-on-surface'
-                  }`}>{t.label}</span>
-                  {selectedTemplate === t.id && (
-                    <span className="material-symbols-outlined text-green-500 text-[16px] ml-auto">check_circle</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Message Preview / Edit */}
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Message Preview</p>
-            <textarea
-              rows={8}
-              value={customMessage || generatedText}
-              onChange={e => setCustomMessage(e.target.value)}
-              className="w-full px-4 py-3 bg-surface-container border border-outline-variant/30 rounded-xl text-on-surface text-sm outline-none focus:border-green-400 transition-all resize-none leading-relaxed"
-              placeholder="Type your message..."
-            />
-            {customMessage && (
-              <button
-                onClick={() => setCustomMessage('')}
-                className="text-xs text-primary hover:underline mt-1"
-              >
-                Reset to template
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-5 border-t border-outline-variant/20">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={!member.phone}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" className="w-4 h-4">
-              <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.737 5.469 2.026 7.769L0 32l8.476-2.003A15.944 15.944 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.279 13.279 0 01-6.77-1.848l-.484-.289-5.03 1.188 1.22-4.898-.317-.503A13.302 13.302 0 012.667 16C2.667 8.637 8.637 2.667 16 2.667S29.333 8.637 29.333 16 23.363 29.333 16 29.333zm7.306-9.984c-.4-.2-2.368-1.168-2.735-1.302-.368-.133-.636-.2-.904.2-.267.4-1.036 1.302-1.27 1.569-.234.267-.468.3-.868.1-.4-.2-1.688-.622-3.215-1.984-1.188-1.06-1.99-2.369-2.224-2.769-.234-.4-.025-.616.175-.815.181-.18.4-.468.601-.702.2-.233.267-.4.4-.667.134-.267.067-.5-.033-.7-.1-.2-.904-2.18-1.237-2.985-.326-.785-.657-.678-.904-.69l-.768-.013c-.267 0-.7.1-1.068.5-.367.4-1.403 1.37-1.403 3.344s1.437 3.878 1.637 4.145c.2.267 2.827 4.315 6.851 6.051.957.413 1.704.66 2.286.845.96.306 1.835.263 2.525.16.77-.115 2.368-.969 2.702-1.904.334-.936.334-1.737.234-1.904-.1-.167-.367-.267-.767-.467z"/>
-            </svg>
-            Open in WhatsApp
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-// ────────────────────────────────────────────────────────────────────────────
-
 export default function PaymentsList() {
   const [activeTab, setActiveTab] = useState('payments');
   const [payments, setPayments] = useState([]);
@@ -176,7 +53,10 @@ export default function PaymentsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingPayment, setEditingPayment] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [messageMember, setMessageMember] = useState(null); // member to send message to
+  const [messageMember, setMessageMember] = useState(null);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [activeTab, searchTerm]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -221,6 +101,11 @@ export default function PaymentsList() {
     const term = searchTerm.toLowerCase();
     return m.name?.toLowerCase().includes(term) || m.phone?.includes(term);
   });
+
+  const paymentsTotalPages = Math.ceil(filteredPayments.length / PAGE_SIZE);
+  const duesTotalPages = Math.ceil(filteredDues.length / PAGE_SIZE);
+  const paginatedPayments = filteredPayments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginatedDues = filteredDues.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openEdit = (payment) => {
     setEditingPayment({
@@ -291,7 +176,7 @@ export default function PaymentsList() {
             <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
             {tab.label}
             {tab.id === 'dues' && duesMembers.length > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-4.5 text-center">
                 {duesMembers.length}
               </span>
             )}
@@ -379,11 +264,11 @@ export default function PaymentsList() {
                       </td>
                     </tr>
                   ) : (
-                    filteredPayments.map(payment => (
+                    paginatedPayments.map(payment => (
                       <tr key={payment.id} className="border-b border-outline-variant/20 hover:bg-surface-container/40 transition-colors">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-sm shrink-0">
                               {payment.memberName?.charAt(0) || '?'}
                             </div>
                             <div>
@@ -419,6 +304,34 @@ export default function PaymentsList() {
                 </tbody>
               </table>
             </div>
+            {!loading && filteredPayments.length > 0 && (
+              <div className="px-4 py-3 border-t border-outline-variant/20 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant">
+                  {paymentsTotalPages > 1
+                    ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filteredPayments.length)} of ${filteredPayments.length}`
+                    : `${filteredPayments.length} payments`}
+                </span>
+                {paymentsTotalPages > 1 && (
+                  <div className="flex gap-1 items-center">
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    {paginationPages(page, paymentsTotalPages).map((p, i) => p === '...'
+                      ? <span key={`e${i}`} className="w-6 text-center text-xs text-on-surface-variant">…</span>
+                      : <button key={p} onClick={() => setPage(p)}
+                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+                          {p}
+                        </button>
+                    )}
+                    <button disabled={page === paymentsTotalPages} onClick={() => setPage(p => p + 1)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -432,7 +345,7 @@ export default function PaymentsList() {
               <span className="material-symbols-outlined text-rose-500 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
               <div>
                 <p className="font-semibold text-rose-700 dark:text-rose-300">{duesMembers.length} member{duesMembers.length > 1 ? 's' : ''} with expired or missing memberships</p>
-                <p className="text-sm text-rose-600 dark:text-rose-400 mt-0.5">Send WhatsApp reminders or renew their plans directly.</p>
+                <p className="text-sm text-rose-600 dark:text-rose-400 mt-0.5">Send SMS reminders or renew their plans directly.</p>
               </div>
             </div>
           )}
@@ -486,14 +399,14 @@ export default function PaymentsList() {
                       </td>
                     </tr>
                   ) : (
-                    filteredDues.map(member => {
+                    paginatedDues.map(member => {
                       const days = daysUntilExpiry(member.expiryDate);
                       const overdueDays = days !== null ? Math.abs(days) : null;
                       return (
                         <tr key={member.id} className="border-b border-outline-variant/20 hover:bg-surface-container/40 transition-colors">
                           <td className="p-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                              <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 flex items-center justify-center font-bold text-sm shrink-0">
                                 {member.name?.charAt(0) || '?'}
                               </div>
                               <div className="font-medium text-on-surface text-sm">{member.name || '—'}</div>
@@ -518,16 +431,13 @@ export default function PaymentsList() {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2">
-                              {/* Send Message button → opens modal with template picker */}
                               <button
                                 onClick={() => setMessageMember(member)}
-                                className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm"
-                                title={`Send WhatsApp message to ${member.name}`}
+                                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-on-primary px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                                title={`Send SMS reminder to ${member.name}`}
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" className="w-3.5 h-3.5">
-                                  <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.737 5.469 2.026 7.769L0 32l8.476-2.003A15.944 15.944 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.279 13.279 0 01-6.77-1.848l-.484-.289-5.03 1.188 1.22-4.898-.317-.503A13.302 13.302 0 012.667 16C2.667 8.637 8.637 2.667 16 2.667S29.333 8.637 29.333 16 23.363 29.333 16 29.333zm7.306-9.984c-.4-.2-2.368-1.168-2.735-1.302-.368-.133-.636-.2-.904.2-.267.4-1.036 1.302-1.27 1.569-.234.267-.468.3-.868.1-.4-.2-1.688-.622-3.215-1.984-1.188-1.06-1.99-2.369-2.224-2.769-.234-.4-.025-.616.175-.815.181-.18.4-.468.601-.702.2-.233.267-.4.4-.667.134-.267.067-.5-.033-.7-.1-.2-.904-2.18-1.237-2.985-.326-.785-.657-.678-.904-.69l-.768-.013c-.267 0-.7.1-1.068.5-.367.4-1.403 1.37-1.403 3.344s1.437 3.878 1.637 4.145c.2.267 2.827 4.315 6.851 6.051.957.413 1.704.66 2.286.845.96.306 1.835.263 2.525.16.77-.115 2.368-.969 2.702-1.904.334-.936.334-1.737.234-1.904-.1-.167-.367-.267-.767-.467z"/>
-                                </svg>
-                                Message
+                                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>sms</span>
+                                SMS
                               </button>
                               <Link
                                 to={`/payments/new?memberId=${member.id}`}
@@ -552,8 +462,31 @@ export default function PaymentsList() {
               </table>
             </div>
             {!loading && filteredDues.length > 0 && (
-              <div className="px-4 py-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
-                Showing {filteredDues.length} member{filteredDues.length !== 1 ? 's' : ''} with dues
+              <div className="px-4 py-3 border-t border-outline-variant/20 flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant">
+                  {duesTotalPages > 1
+                    ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filteredDues.length)} of ${filteredDues.length} members`
+                    : `${filteredDues.length} member${filteredDues.length !== 1 ? 's' : ''} with dues`}
+                </span>
+                {duesTotalPages > 1 && (
+                  <div className="flex gap-1 items-center">
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    {paginationPages(page, duesTotalPages).map((p, i) => p === '...'
+                      ? <span key={`e${i}`} className="w-6 text-center text-xs text-on-surface-variant">…</span>
+                      : <button key={p} onClick={() => setPage(p)}
+                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+                          {p}
+                        </button>
+                    )}
+                    <button disabled={page === duesTotalPages} onClick={() => setPage(p => p + 1)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -635,10 +568,12 @@ export default function PaymentsList() {
         </div>
       )}
 
-      {/* Send WhatsApp Message Modal */}
+      {/* Send SMS Modal */}
       {messageMember && (
-        <SendMessageModal
-          member={messageMember}
+        <SendSMSModal
+          phones={[messageMember.phone]}
+          recipientLabel={`${messageMember.name} · ${messageMember.phone}`}
+          defaultMessage={getSMSDefaultMessage(messageMember)}
           onClose={() => setMessageMember(null)}
         />
       )}

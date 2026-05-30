@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createDocument } from '../../firebase/db';
 import toast from 'react-hot-toast';
+import PhotoUpload from '../../components/ui/PhotoUpload';
 
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
@@ -12,6 +13,7 @@ function addDays(dateStr, days) {
 export default function AddMember() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState('');
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -109,6 +111,7 @@ export default function AddMember() {
         totalFees,
         paidFees: paidAmount,
         balanceFees: balance,
+        ...(photoUrl && { photoUrl }),
       });
 
       await createDocument('payments', {
@@ -169,6 +172,26 @@ export default function AddMember() {
               <span className="material-symbols-outlined text-[16px]">person</span>
               Personal Details
             </h2>
+
+            {/* Photo */}
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-20 h-20 rounded-full bg-primary-container text-primary flex items-center justify-center text-2xl font-bold shrink-0 overflow-hidden border-2 border-outline-variant/20">
+                {photoUrl
+                  ? <img src={photoUrl} alt="preview" className="w-full h-full object-cover" />
+                  : (formData.name ? formData.name.charAt(0).toUpperCase() : <span className="material-symbols-outlined text-[28px] opacity-50">person</span>)
+                }
+              </div>
+              <div className="flex flex-col gap-1">
+                <PhotoUpload onUpload={(url) => setPhotoUrl(url)} />
+                {photoUrl && (
+                  <button type="button" onClick={() => setPhotoUrl('')} className="text-xs text-rose-500 hover:text-rose-600 text-left transition-colors">
+                    Remove photo
+                  </button>
+                )}
+                <p className="text-xs text-on-surface-variant">Optional — JPG, PNG up to 5 MB</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm text-on-surface">Full Name <span className="text-error">*</span></label>

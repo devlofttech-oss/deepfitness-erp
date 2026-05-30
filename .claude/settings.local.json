@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -l \"attendance\\\\|checkin\")",
+      "Bash(xargs wc -l)",
+      "Bash(find . -name \"*.log\" -o -name \"*.txt\" 2>nul | head -20)",
+      "Bash(dir \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\")",
+      "Bash(find \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\\\\context\" -name \"*.jsx\" -o -name \"*.js\" 2>nul)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Devloft-work\\\\deepfitness-erp\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "WebSearch",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" remote -v)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" status)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" diff)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" diff --cached -- server.js vite.config.js)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" check-ignore -v .env)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" add server.js .claude/settings.local.json)"
+    ],
+    "additionalDirectories": [
+      "d:\\Devloft-work\\deepfitness-erp"
+    ]
+  }
+}

@@ -38,12 +38,12 @@ const DEFAULT_CATEGORIES = [
     ],
   },
   {
-    id: 'kids_dance',
-    name: 'Kids Dance',
+    id: 'group_classes',
+    name: 'Group Classes',
     plans: [
-      { id: 'kids-1', name: 'Monthly',  durationDays: 30,  amount: 0 },
-      { id: 'kids-2', name: '3 Months', durationDays: 90,  amount: 0 },
-      { id: 'kids-3', name: '6 Months', durationDays: 180, amount: 0 },
+      { id: 'grp-1', name: 'Monthly',  durationDays: 30,  amount: 0 },
+      { id: 'grp-2', name: '3 Months', durationDays: 90,  amount: 0 },
+      { id: 'grp-3', name: '6 Months', durationDays: 180, amount: 0 },
     ],
   },
 ];
@@ -57,7 +57,7 @@ const DEFAULT_GYM_INFO = {
 const CATEGORY_META = {
   gym:       { icon: 'fitness_center', color: 'text-blue-500',   bg: 'bg-blue-500/10'   },
   zumba:     { icon: 'music_note',     color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  kids_dance:{ icon: 'child_care',     color: 'text-green-500',  bg: 'bg-green-500/10'  },
+  group_classes: { icon: 'groups',     color: 'text-green-500',  bg: 'bg-green-500/10'  },
 };
 
 export default function Settings() {

@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getDocument, getCollection, updateDocument, deleteDocument } from '../../firebase/db';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
+import PhotoUpload from '../../components/ui/PhotoUpload';
 
 // ── Attendance Calendar ─────────────────────────────────────────────────────
 function AttendanceCalendar({ attendance }) {
@@ -11,7 +12,8 @@ function AttendanceCalendar({ attendance }) {
 
   const attendedDates = new Set(
     attendance.map(a => {
-      const d = new Date(a.timestamp || a.date);
+      if (a.date && /^\d{4}-\d{2}-\d{2}$/.test(a.date)) return a.date;
+      const d = new Date(a.checkInTime || a.timestamp || a.date);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     })
   );
@@ -168,7 +170,7 @@ export default function MemberProfile() {
         setPayments(paymentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
 
         const attendanceData = await getCollection('attendance', [{ field: 'memberId', op: '==', value: id }]);
-        setAttendance(attendanceData.sort((a, b) => new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0)));
+        setAttendance(attendanceData.sort((a, b) => new Date(b.checkInTime || b.timestamp || b.date || 0) - new Date(a.checkInTime || a.timestamp || a.date || 0)));
       } catch (error) {
         console.error('Error fetching data', error);
       } finally {
@@ -302,8 +304,20 @@ export default function MemberProfile() {
       <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
         <div className="flex items-center gap-4 md:gap-6 relative z-10">
-          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-3xl md:text-4xl font-bold shadow-inner shrink-0">
-            {member.name?.charAt(0) || '?'}
+          <div className="relative shrink-0 group">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-3xl md:text-4xl font-bold shadow-inner overflow-hidden">
+              {member.photoUrl
+                ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                : (member.name?.charAt(0) || '?')
+              }
+            </div>
+            <div className="absolute bottom-0 right-0">
+              <PhotoUpload compact onUpload={async (url) => {
+                await updateDocument('members', id, { photoUrl: url });
+                setMember(prev => ({ ...prev, photoUrl: url }));
+                toast.success('Photo updated!');
+              }} />
+            </div>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
             <h1 className="font-h2 text-h2 text-on-surface wrap-break-word">{member.name}</h1>
@@ -493,10 +507,13 @@ export default function MemberProfile() {
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
                       <span className="font-medium text-on-surface text-sm">
-                        {new Date(record.timestamp || record.date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date(record.checkInTime || record.timestamp || record.date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                       </span>
                       <span className="text-xs text-on-surface-variant">
-                        {new Date(record.timestamp || record.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        {record.checkInTime || record.timestamp
+                          ? new Date(record.checkInTime || record.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                          : record.date}
+                        {record.checkOutTime && ` → ${new Date(record.checkOutTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}${record.duration ? ` (${record.duration} min)` : ''}`}
                       </span>
                     </div>
                     <button

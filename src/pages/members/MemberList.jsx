@@ -1,8 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
+
+const PAGE_SIZE = 25;
+
+function paginationPages(page, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = [1];
+  if (page > 3) pages.push('...');
+  for (let p = Math.max(2, page - 1); p <= Math.min(total - 1, page + 1); p++) pages.push(p);
+  if (page < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
 import { getCollection, createDocument } from '../../firebase/db';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import SendSMSModal from '../../components/messaging/SendSMSModal';
 
 function daysUntilExpiry(expiryDate) {
   if (!expiryDate) return null;
@@ -13,15 +26,6 @@ function daysUntilExpiry(expiryDate) {
   return Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
 }
 
-function buildWhatsAppLink(phone, name, expiryDate) {
-  const cleaned = String(phone).replace(/\D/g, '');
-  const withCountry = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
-  const message = encodeURIComponent(
-    `Hi ${name}! 👋\n\nYour *Deep Fitness* membership expires on *${expiryDate}*.\n\nRenew now to keep your fitness journey going! 💪\n\nReply to this message or visit us to renew.\n\n— Deep Fitness Team`
-  );
-  return `https://wa.me/${withCountry}?text=${message}`;
-}
-
 export default function MemberList() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,12 +33,16 @@ export default function MemberList() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
   const [importing, setImporting] = useState(false);
-  const [importPreview, setImportPreview] = useState(null); // { rows, headers }
+  const [importPreview, setImportPreview] = useState(null);
+  const [smsMember, setSmsMember] = useState(null);
+  const [page, setPage] = useState(1);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchMembers();
   }, []);
+
+  useEffect(() => { setPage(1); }, [searchTerm, filterStatus, filterCategory]);
 
   const fetchMembers = async () => {
     try {
@@ -177,27 +185,40 @@ export default function MemberList() {
     );
   };
 
-  const CATEGORIES = ['All', 'Gym', 'Zumba', 'Kids Dance'];
+  const CATEGORIES = ['All', 'Gym', 'Zumba', 'Group Classes'];
   const CATEGORY_META = {
-    Gym:          { icon: 'fitness_center', color: 'text-violet-600',  bg: 'bg-violet-50',  activeBg: 'bg-violet-600' },
-    Zumba:        { icon: 'music_note',     color: 'text-pink-600',    bg: 'bg-pink-50',    activeBg: 'bg-pink-500' },
-    'Kids Dance': { icon: 'child_care',     color: 'text-amber-600',   bg: 'bg-amber-50',   activeBg: 'bg-amber-500' },
+    Gym:             { icon: 'fitness_center', color: 'text-violet-600', bg: 'bg-violet-50', activeBg: 'bg-violet-600' },
+    Zumba:           { icon: 'music_note',     color: 'text-pink-600',   bg: 'bg-pink-50',   activeBg: 'bg-pink-500'  },
+    'Group Classes': { icon: 'groups',         color: 'text-amber-600',  bg: 'bg-amber-50',  activeBg: 'bg-amber-500' },
+  };
+
+  const matchesCategory = (member, cat) => {
+    if (cat === 'All') return true;
+    if (cat === 'Group Classes') {
+      // Match both new "Group Classes" and old "Kids Dance" plan prefixes
+      return member.planName?.startsWith('Group Classes') || member.planName?.startsWith('Kids Dance');
+    }
+    return member.planName?.startsWith(cat);
   };
 
   const filtered = members.filter(m => {
     const term = searchTerm.toLowerCase();
     const matchSearch = !term || m.name?.toLowerCase().includes(term) || m.phone?.includes(term);
     const days = daysUntilExpiry(m.expiryDate);
-    const effectiveStatus = days !== null && days < 0 ? 'Expired' : 'Active';
-    const matchStatus = filterStatus === 'All' || effectiveStatus === filterStatus;
-    const matchCategory = filterCategory === 'All' || m.planName?.startsWith(filterCategory);
-    return matchSearch && matchStatus && matchCategory;
+    let matchStatus = true;
+    if (filterStatus === 'Active') matchStatus = days === null || days >= 0;
+    else if (filterStatus === 'Expired') matchStatus = days !== null && days < 0;
+    else if (filterStatus === 'Expiring') matchStatus = days !== null && days >= 0 && days <= 7;
+    return matchSearch && matchStatus && matchesCategory(m, filterCategory);
   });
 
   const expiringCount = members.filter(m => {
     const days = daysUntilExpiry(m.expiryDate);
     return days !== null && days >= 0 && days <= 7;
   }).length;
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-6">
@@ -240,9 +261,9 @@ export default function MemberList() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <span className="material-symbols-outlined text-amber-500 text-2xl">notification_important</span>
           <p className="text-sm font-medium text-amber-800">
-            <strong>{expiringCount} member{expiringCount > 1 ? 's' : ''}</strong> expiring within 7 days — send a WhatsApp reminder using the{' '}
-            <span className="inline-flex items-center gap-0.5 text-green-700">
-              <span className="material-symbols-outlined text-[14px]">chat</span> WhatsApp
+            <strong>{expiringCount} member{expiringCount > 1 ? 's' : ''}</strong> expiring within 7 days — send an SMS reminder using the{' '}
+            <span className="inline-flex items-center gap-0.5 text-primary">
+              <span className="material-symbols-outlined text-[14px]">sms</span> SMS
             </span>{' '}
             button in their row.
           </p>
@@ -344,7 +365,7 @@ export default function MemberList() {
           const isActive = filterCategory === cat;
           const count = cat === 'All'
             ? members.length
-            : members.filter(m => m.planName?.startsWith(cat)).length;
+            : members.filter(m => matchesCategory(m, cat)).length;
           return (
             <button
               key={cat}
@@ -391,18 +412,30 @@ export default function MemberList() {
           )}
         </div>
 
-        <div className="flex gap-2">
-          {['All', 'Active', 'Expired'].map(status => (
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { id: 'All',      label: 'All' },
+            { id: 'Active',   label: 'Active' },
+            { id: 'Expiring', label: 'Expiring Soon' },
+            { id: 'Expired',  label: 'Expired' },
+          ].map(({ id, label }) => (
             <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filterStatus === status
-                  ? 'bg-primary text-on-primary shadow-sm'
+              key={id}
+              onClick={() => setFilterStatus(id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filterStatus === id
+                  ? id === 'Expiring'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-primary text-on-primary shadow-sm'
                   : 'bg-surface-container-lowest border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container'
               }`}
             >
-              {status}
+              {label}
+              {id === 'Expiring' && expiringCount > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${filterStatus === 'Expiring' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                  {expiringCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -443,7 +476,7 @@ export default function MemberList() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(member => {
+                paginated.map(member => {
                   const days = daysUntilExpiry(member.expiryDate);
                   const isExpiringSoon = days !== null && days >= 0 && days <= 7;
                   const isExpired = days !== null && days < 0;
@@ -453,8 +486,11 @@ export default function MemberList() {
                     <tr key={member.id} className="border-b border-outline-variant/20 hover:bg-surface-container/40 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold shrink-0">
-                            {member.name?.charAt(0) || '?'}
+                          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                            {member.photoUrl
+                              ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                              : (member.name?.charAt(0) || '?')
+                            }
                           </div>
                           <div>
                             <div className="font-medium text-on-surface">{member.name}</div>
@@ -487,18 +523,14 @@ export default function MemberList() {
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-2">
                           {isExpiringSoon && member.phone && (
-                            <a
-                              href={buildWhatsAppLink(member.phone, member.name, member.expiryDate)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`Send WhatsApp renewal reminder to ${member.name}`}
-                              className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm animate-pulse hover:animate-none"
+                            <button
+                              onClick={() => setSmsMember(member)}
+                              title={`Send SMS renewal reminder to ${member.name}`}
+                              className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-on-primary px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm animate-pulse hover:animate-none"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" className="w-3.5 h-3.5">
-                                <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.737 5.469 2.026 7.769L0 32l8.476-2.003A15.944 15.944 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.279 13.279 0 01-6.77-1.848l-.484-.289-5.03 1.188 1.22-4.898-.317-.503A13.302 13.302 0 012.667 16C2.667 8.637 8.637 2.667 16 2.667S29.333 8.637 29.333 16 23.363 29.333 16 29.333zm7.306-9.984c-.4-.2-2.368-1.168-2.735-1.302-.368-.133-.636-.2-.904.2-.267.4-1.036 1.302-1.27 1.569-.234.267-.468.3-.868.1-.4-.2-1.688-.622-3.215-1.984-1.188-1.06-1.99-2.369-2.224-2.769-.234-.4-.025-.616.175-.815.181-.18.4-.468.601-.702.2-.233.267-.4.4-.667.134-.267.067-.5-.033-.7-.1-.2-.904-2.18-1.237-2.985-.326-.785-.657-.678-.904-.69l-.768-.013c-.267 0-.7.1-1.068.5-.367.4-1.403 1.37-1.403 3.344s1.437 3.878 1.637 4.145c.2.267 2.827 4.315 6.851 6.051.957.413 1.704.66 2.286.845.96.306 1.835.263 2.525.16.77-.115 2.368-.969 2.702-1.904.334-.936.334-1.737.234-1.904-.1-.167-.367-.267-.767-.467z"/>
-                              </svg>
+                              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>sms</span>
                               Remind
-                            </a>
+                            </button>
                           )}
                           <Link
                             to={`/members/${member.id}`}
@@ -516,13 +548,45 @@ export default function MemberList() {
           </table>
         </div>
 
-        {/* Footer count */}
+        {/* Pagination */}
         {!loading && filtered.length > 0 && (
-          <div className="px-4 py-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
-            Showing {filtered.length} of {members.length} members
+          <div className="px-4 py-3 border-t border-outline-variant/20 flex items-center justify-between">
+            <span className="text-xs text-on-surface-variant">
+              {totalPages > 1
+                ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} of ${filtered.length} members`
+                : `${filtered.length} of ${members.length} members`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex gap-1 items-center">
+                <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {paginationPages(page, totalPages).map((p, i) => p === '...'
+                  ? <span key={`e${i}`} className="w-6 text-center text-xs text-on-surface-variant">…</span>
+                  : <button key={p} onClick={() => setPage(p)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+                      {p}
+                    </button>
+                )}
+                <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container disabled:opacity-30 transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {smsMember && (
+        <SendSMSModal
+          phones={[smsMember.phone]}
+          recipientLabel={`${smsMember.name} · ${smsMember.phone}`}
+          defaultMessage={`Hi ${smsMember.name}! Your Deep Fitness membership expires on ${smsMember.expiryDate}. Renew now to continue your fitness journey! Visit us or call us to renew. - Deep Fitness`}
+          onClose={() => setSmsMember(null)}
+        />
+      )}
     </div>
   );
 }
