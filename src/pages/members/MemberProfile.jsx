@@ -304,20 +304,27 @@ export default function MemberProfile() {
       <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
         <div className="flex items-center gap-4 md:gap-6 relative z-10">
-          <div className="relative shrink-0 group">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-3xl md:text-4xl font-bold shadow-inner overflow-hidden">
+          <div className="shrink-0 flex flex-col items-center gap-2">
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-primary-container text-primary flex items-center justify-center text-4xl md:text-5xl font-bold shadow-inner overflow-hidden">
               {member.photoUrl
-                ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-contain" />
                 : (member.name?.charAt(0) || '?')
               }
             </div>
-            <div className="absolute bottom-0 right-0">
-              <PhotoUpload compact onUpload={async (url) => {
+            <PhotoUpload
+              compact
+              hasPhoto={!!member.photoUrl}
+              onUpload={async (url) => {
                 await updateDocument('members', id, { photoUrl: url });
                 setMember(prev => ({ ...prev, photoUrl: url }));
                 toast.success('Photo updated!');
-              }} />
-            </div>
+              }}
+              onDelete={async () => {
+                await updateDocument('members', id, { photoUrl: null });
+                setMember(prev => ({ ...prev, photoUrl: null }));
+                toast.success('Photo removed!');
+              }}
+            />
           </div>
           <div className="flex flex-col gap-1 min-w-0">
             <h1 className="font-h2 text-h2 text-on-surface wrap-break-word">{member.name}</h1>

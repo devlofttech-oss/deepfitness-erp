@@ -62,6 +62,12 @@ export default function StaffProfile() {
     fetchData();
   };
 
+  const handlePhotoDelete = async () => {
+    await updateDocument('staff', id, { photoUrl: null });
+    toast.success('Photo removed!');
+    fetchData();
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-100 text-on-surface-variant">
       <span className="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
@@ -105,7 +111,7 @@ export default function StaffProfile() {
               : <div className="w-24 h-24 rounded-full bg-primary-container text-primary flex items-center justify-center text-3xl font-bold border-4 border-surface-container">{member.name?.charAt(0)}</div>
             }
           </div>
-          <PhotoUpload onUpload={handlePhotoUpload} compact />
+          <PhotoUpload compact hasPhoto={!!member.photoUrl} onUpload={handlePhotoUpload} onDelete={handlePhotoDelete} />
           <div>
             <h2 className="font-h2 text-h2 text-on-surface">{member.name}</h2>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full mt-1 inline-block ${roleBadgeColor[member.role] || 'bg-slate-100 text-slate-600'}`}>{member.role}</span>
