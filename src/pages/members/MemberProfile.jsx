@@ -132,19 +132,38 @@ export default function MemberProfile() {
   // ── Attendance delete ──
   const [deletingAttendanceId, setDeletingAttendanceId] = useState(null);
 
-  const printQR = () => {
+  const downloadQR = () => {
     const svg = qrRef.current?.querySelector('svg');
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
-    const win = window.open('', '_blank');
-    win.document.write(`
-      <html><head><title>QR Code - ${member?.name}</title>
-      <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#fff;}.card{border:2px solid #7c3aed;border-radius:16px;padding:24px;text-align:center;max-width:300px;}h2{margin:12px 0 4px;color:#1e1b4b;font-size:20px;}p{margin:0;color:#6b7280;font-size:13px;}.gym{font-size:11px;color:#7c3aed;font-weight:600;margin-top:8px;letter-spacing:1px;}</style>
-      </head><body><div class="card">${svgData}<h2>${member?.name}</h2><p>${member?.phone || ''}</p><p class="gym">DEEP FITNESS</p></div></body></html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const qrSize = 200;
+    const padding = 24;
+    const textHeight = 52;
+    const canvas = document.createElement('canvas');
+    canvas.width = qrSize + padding * 2;
+    canvas.height = qrSize + padding * 2 + textHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, padding, padding, qrSize, qrSize);
+      ctx.fillStyle = '#1e1b4b';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(member?.name || '', canvas.width / 2, qrSize + padding + 22);
+      ctx.fillStyle = '#7c3aed';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('DEEP FITNESS', canvas.width / 2, qrSize + padding + 42);
+      URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.download = `${member?.name || 'member'}-qr.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+    img.src = url;
   };
 
   useEffect(() => {
@@ -422,8 +441,8 @@ export default function MemberProfile() {
                   <p className="text-sm font-semibold text-on-surface">{member.name}</p>
                   <p className="text-xs text-on-surface-variant mt-0.5">Scan at gym entrance to check in</p>
                 </div>
-                <button onClick={printQR} className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm shadow-sm">
-                  <span className="material-symbols-outlined text-[18px]">print</span> Print QR Card
+                <button onClick={downloadQR} className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm shadow-sm">
+                  <span className="material-symbols-outlined text-[18px]">download</span> Download QR
                 </button>
               </div>
             ) : (
