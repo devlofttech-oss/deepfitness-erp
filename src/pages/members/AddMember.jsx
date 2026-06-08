@@ -28,12 +28,17 @@ export default function AddMember() {
     planName: '',
     durationDays: 30,
     totalFees: 0,
+    discountPercent: '',
+    nextPaymentDays: '',
     paidNow: '',
     paymentMode: 'Cash',
     expiryDate: addDays(today, 30),
   });
 
-  const balanceFees = Math.max(0, Number(formData.totalFees || 0) - Number(formData.paidNow || 0));
+  const basePlanFees = Number(formData.totalFees || 0);
+  const discountPct = Math.min(100, Math.max(0, Number(formData.discountPercent || 0)));
+  const discountedTotal = Math.round(basePlanFees * (1 - discountPct / 100));
+  const balanceFees = Math.max(0, discountedTotal - Number(formData.paidNow || 0));
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -81,6 +86,7 @@ export default function AddMember() {
           planName: fullName,
           durationDays: plan.durationDays,
           totalFees: plan.amount,
+          discountPercent: '',
           paidNow: '',
         }));
         return;
@@ -92,9 +98,13 @@ export default function AddMember() {
     e.preventDefault();
     if (!formData.phone) { toast.error('Phone number is required'); return; }
 
-    const totalFees  = Number(formData.totalFees || 0);
+    const discount   = Math.min(100, Math.max(0, Number(formData.discountPercent || 0)));
+    const totalFees  = Math.round(Number(formData.totalFees || 0) * (1 - discount / 100));
     const paidAmount = Number(formData.paidNow   || 0);
     const balance    = Math.max(0, totalFees - paidAmount);
+    const nextPaymentDate = formData.nextPaymentDays
+      ? addDays(formData.joinDate, Number(formData.nextPaymentDays))
+      : null;
 
     try {
       setLoading(true);
@@ -111,6 +121,8 @@ export default function AddMember() {
         totalFees,
         paidFees: paidAmount,
         balanceFees: balance,
+        ...(discount > 0 && { discountPercent: discount }),
+        ...(nextPaymentDate && { nextPaymentDate }),
         ...(photoUrl && { photoUrl }),
       });
 
@@ -144,8 +156,11 @@ export default function AddMember() {
     (new Date(formData.expiryDate) - new Date(formData.planActiveFrom)) / (1000 * 60 * 60 * 24)
   );
 
-  const totalFeesNum = Number(formData.totalFees || 0);
   const paidNowNum   = Number(formData.paidNow   || 0);
+  const discountSavings = basePlanFees - discountedTotal;
+  const nextPaymentDate = formData.nextPaymentDays
+    ? addDays(formData.joinDate, Number(formData.nextPaymentDays))
+    : null;
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto w-full">
@@ -274,15 +289,59 @@ export default function AddMember() {
                 </select>
               </div>
 
+              {/* Discount */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-sm text-on-surface">Discount (%)</label>
+                  <input
+                    type="number"
+                    name="discountPercent"
+                    value={formData.discountPercent}
+                    onChange={handleChange}
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none text-sm"
+                  />
+                  <span className="text-xs text-on-surface-variant">
+                    {discountPct > 0 ? `Save ₹${discountSavings.toLocaleString('en-IN')}` : 'Optional discount'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-sm text-on-surface">Next Payment (days)</label>
+                  <input
+                    type="number"
+                    name="nextPaymentDays"
+                    value={formData.nextPaymentDays}
+                    onChange={handleChange}
+                    min="1"
+                    placeholder="e.g. 30"
+                    className="w-full px-3 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface outline-none text-sm"
+                  />
+                  <span className="text-xs text-on-surface-variant">
+                    {nextPaymentDate ? `Due by: ${nextPaymentDate}` : 'Grace period (optional)'}
+                  </span>
+                </div>
+              </div>
+
               {/* Fees row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Total Fees — read-only */}
                 <div className="flex flex-col gap-1.5">
                   <label className="font-medium text-sm text-on-surface">Total Fees (₹)</label>
                   <div className="w-full px-3 py-2.5 bg-surface-container border border-outline-variant/20 rounded-lg text-on-surface-variant text-sm font-semibold select-none">
-                    {totalFeesNum > 0 ? `₹${totalFeesNum.toLocaleString('en-IN')}` : '—'}
+                    {discountPct > 0 ? (
+                      <span>
+                        <span className="line-through opacity-50 mr-1.5">₹{basePlanFees.toLocaleString('en-IN')}</span>
+                        <span className="text-primary">₹{discountedTotal.toLocaleString('en-IN')}</span>
+                      </span>
+                    ) : (
+                      basePlanFees > 0 ? `₹${basePlanFees.toLocaleString('en-IN')}` : '—'
+                    )}
                   </div>
-                  <span className="text-xs text-on-surface-variant">Plan price</span>
+                  <span className="text-xs text-on-surface-variant">
+                    {discountPct > 0 ? `After ${discountPct}% discount` : 'Plan price'}
+                  </span>
                 </div>
 
                 {/* Paid Fees — editable */}
@@ -366,7 +425,12 @@ export default function AddMember() {
               <div className="flex flex-wrap gap-4 mt-1 text-sm">
                 <div>
                   <span className="text-on-surface-variant">Total:</span>{' '}
-                  <span className="font-semibold text-on-surface">₹{totalFeesNum.toLocaleString('en-IN')}</span>
+                  <span className="font-semibold text-on-surface">₹{discountedTotal.toLocaleString('en-IN')}</span>
+                  {discountPct > 0 && (
+                    <span className="ml-1.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">
+                      -{discountPct}%
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-on-surface-variant">Paying:</span>{' '}
@@ -381,6 +445,7 @@ export default function AddMember() {
               </div>
               <p className="text-xs text-on-surface-variant mt-1">
                 Plan: {formData.planActiveFrom} → {formData.expiryDate} ({daysUntilExpiry} days) · {formData.paymentMode}
+                {nextPaymentDate && ` · Next payment by: ${nextPaymentDate}`}
               </p>
             </div>
           </div>

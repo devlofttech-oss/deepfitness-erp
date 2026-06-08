@@ -93,13 +93,13 @@ export default function ClassDetail() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[400px] text-on-surface-variant">
+    <div className="flex items-center justify-center min-h-100 text-on-surface-variant">
       <span className="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
     </div>
   );
 
   if (!cls) return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-on-surface-variant">
+    <div className="flex flex-col items-center justify-center min-h-100 gap-4 text-on-surface-variant">
       <span className="material-symbols-outlined text-5xl opacity-40">sports_gymnastics</span>
       <p>Class not found.</p>
       <Link to="/classes" className="text-primary hover:underline text-sm">Back to Classes</Link>

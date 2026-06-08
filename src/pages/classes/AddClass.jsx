@@ -7,7 +7,7 @@ const CLASS_TYPES = ['Zumba', 'Yoga', 'Dance', 'HIIT', 'Kids Dance', 'Other'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const EMPTY = {
-  name: '', type: 'Zumba', trainerId: '', trainerName: '',
+  name: '', type: [], trainerId: '', trainerName: '',
   capacity: '', description: '', schedule: [],
 };
 
@@ -30,7 +30,10 @@ export default function AddClass() {
       ]);
       setStaff(staffData.filter(s => s.role === 'Trainer'));
       if (classData) setForm({
-        name: classData.name || '', type: classData.type || 'Zumba',
+        name: classData.name || '',
+        type: Array.isArray(classData.type)
+          ? classData.type
+          : (classData.type ? [classData.type] : []),
         trainerId: classData.trainerId || '', trainerName: classData.trainerName || '',
         capacity: classData.capacity || '', description: classData.description || '',
         schedule: classData.schedule || [],
@@ -53,9 +56,17 @@ export default function AddClass() {
     ...p, schedule: p.schedule.map((s, idx) => idx === i ? { ...s, [field]: val } : s)
   }));
 
+  const toggleType = (t) => {
+    setForm(p => ({
+      ...p,
+      type: p.type.includes(t) ? p.type.filter(x => x !== t) : [...p.type, t],
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name) { toast.error('Class name is required'); return; }
+    if (form.type.length === 0) { toast.error('Select at least one class type'); return; }
     setSaving(true);
     try {
       const data = { ...form, capacity: Number(form.capacity) || 0 };
@@ -104,12 +115,29 @@ export default function AddClass() {
                 <input required name="name" value={form.name} onChange={handle} placeholder="e.g. Morning Zumba Batch"
                   className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg text-on-surface outline-none focus:border-primary" />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-on-surface">Class Type</label>
-                <select name="type" value={form.type} onChange={handle}
-                  className="w-full px-4 py-2.5 bg-surface-container border border-outline-variant/30 rounded-lg text-on-surface outline-none focus:border-primary appearance-none">
-                  {CLASS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-on-surface">
+                  Class Type <span className="text-on-surface-variant font-normal">(select all that apply)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CLASS_TYPES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => toggleType(t)}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+                        form.type.includes(t)
+                          ? 'bg-primary text-on-primary border-primary shadow-sm'
+                          : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {form.type.length === 0 && (
+                  <span className="text-xs text-rose-500">Please select at least one type</span>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-on-surface">Capacity</label>

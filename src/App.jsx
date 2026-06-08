@@ -11,6 +11,7 @@ import PaymentsList from './pages/payments/PaymentsList';
 import PaymentPage from './pages/payments/PaymentPage';
 import CheckinScreen from './pages/attendance/CheckinScreen';
 import AllCheckins from './pages/attendance/AllCheckins';
+import ScannerKiosk from './pages/attendance/ScannerKiosk';
 import Settings from './pages/settings/Settings';
 import StaffList from './pages/staff/StaffList';
 import StaffProfile from './pages/staff/StaffProfile';
@@ -34,6 +35,13 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
+      {/* Standalone scanner kiosk — no sidebar/nav, opens in popup window */}
+      <Route path="/scanner" element={
+        <RoleRoute allowedRoles={ALL}>
+          <ScannerKiosk />
+        </RoleRoute>
+      } />
 
       <Route
         path="/*"

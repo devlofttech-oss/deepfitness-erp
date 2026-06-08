@@ -14,7 +14,17 @@
       "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" diff)",
       "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" diff --cached -- server.js vite.config.js)",
       "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" check-ignore -v .env)",
-      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" add server.js .claude/settings.local.json)"
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" add server.js .claude/settings.local.json)",
+      "Bash(git -C 'd:\\\\Devloft-work\\\\deepfitness-erp' commit -m ' *)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" push origin main)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" diff src/components/ui/PhotoUpload.jsx src/pages/members/MemberProfile.jsx src/pages/staff/StaffProfile.jsx)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" add src/components/ui/PhotoUpload.jsx src/pages/members/MemberProfile.jsx src/pages/staff/StaffProfile.jsx)",
+      "Bash(git -C \"d:\\\\Devloft-work\\\\deepfitness-erp\" add src/pages/members/MemberProfile.jsx)",
+      "Bash(xargs grep -l \"buzz\\\\|sound\\\\|audio\\\\|alert\")",
+      "Bash(xargs grep -l \"discount\")",
+      "Bash(dir \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\\\\pages\\\\members\")",
+      "Bash(dir \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\\\\components\")",
+      "Bash(xargs grep -l \"totalFees\\\\|paidFees\\\\|balanceFees\")"
     ],
     "additionalDirectories": [
       "d:\\Devloft-work\\deepfitness-erp"

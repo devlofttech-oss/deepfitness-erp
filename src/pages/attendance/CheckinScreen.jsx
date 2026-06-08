@@ -9,14 +9,14 @@ const playBeep = (type) => {
     if (!AudioContext) return;
     const ctx = new AudioContext();
 
-    const makeBeep = (freq, waveType, startAt, duration) => {
+    const makeBeep = (freq, waveType, startAt, duration, volume = 0.5) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.type = waveType;
       osc.frequency.setValueAtTime(freq, startAt);
-      gain.gain.setValueAtTime(0.5, startAt);
+      gain.gain.setValueAtTime(volume, startAt);
       gain.gain.exponentialRampToValueAtTime(0.01, startAt + duration);
       osc.start(startAt);
       osc.stop(startAt + duration);
@@ -28,8 +28,11 @@ const playBeep = (type) => {
       makeBeep(800, 'sine', ctx.currentTime, 0.15);
       makeBeep(1100, 'sine', ctx.currentTime + 0.2, 0.2);
     } else if (type === 'warning') {
-      makeBeep(600, 'sine', ctx.currentTime, 0.25);
-      makeBeep(600, 'sine', ctx.currentTime + 0.35, 0.25);
+      // Big alarm buzzer — harsh sawtooth, high volume, 4 pulses
+      makeBeep(200, 'sawtooth', ctx.currentTime,       0.35, 0.9);
+      makeBeep(200, 'sawtooth', ctx.currentTime + 0.45, 0.35, 0.9);
+      makeBeep(200, 'sawtooth', ctx.currentTime + 0.9,  0.35, 0.9);
+      makeBeep(200, 'sawtooth', ctx.currentTime + 1.35, 0.35, 0.9);
     } else {
       makeBeep(150, 'sawtooth', ctx.currentTime, 1.0);
       makeBeep(150, 'sawtooth', ctx.currentTime + 1.2, 1.0);
@@ -41,13 +44,15 @@ const playBeep = (type) => {
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-export default function CheckinScreen() {
+export default function CheckinScreen({ isKiosk = false }) {
   const [members, setMembers] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [recentCheckins, setRecentCheckins] = useState([]);
+  const [tabVisible, setTabVisible] = useState(!document.hidden);
+  const [scannerKey, setScannerKey] = useState(0);
   const lastScannedRef = useRef({ id: null, time: 0 });
   const scanBufferRef = useRef('');
   const scanTimerRef = useRef(null);
@@ -75,6 +80,20 @@ export default function CheckinScreen() {
 
   useEffect(() => { membersRef.current = members; }, [members]);
   useEffect(() => { staffRef.current = staff; }, [staff]);
+
+  // Page visibility — detect when user switches tabs
+  useEffect(() => {
+    const handleVisibility = () => {
+      const visible = !document.hidden;
+      setTabVisible(visible);
+      if (visible) {
+        // Increment key to force scanner useEffect to tear down and recreate
+        setScannerKey(k => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   // Hardware barcode/QR scanner keyboard support
   useEffect(() => {
@@ -108,7 +127,7 @@ export default function CheckinScreen() {
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !tabVisible) return;
 
     const scanner = new Html5QrcodeScanner('reader', {
       qrbox: { width: 250, height: 250 },
@@ -125,7 +144,7 @@ export default function CheckinScreen() {
     }, () => {});
 
     return () => { scanner.clear().catch(() => {}); };
-  }, [loading]);
+  }, [loading, scannerKey, tabVisible]);
 
   // Core check-in/check-out logic — handles both members and staff
   const processCheckin = async (scannedId) => {
@@ -170,6 +189,8 @@ export default function CheckinScreen() {
     const activeSession = todayRecords.find(r => !r.checkOutTime);
 
     const hasBalance = member.balanceFees && Number(member.balanceFees) > 0;
+    const isInGracePeriod = hasBalance && member.nextPaymentDate && today <= member.nextPaymentDate;
+    const shouldWarnBalance = hasBalance && !isInGracePeriod;
 
     if (activeSession) {
       // Check-out
@@ -197,18 +218,24 @@ export default function CheckinScreen() {
         ...(hasBalance && { balanceFees: member.balanceFees }),
       });
 
-      if (hasBalance) {
+      if (shouldWarnBalance) {
         playBeep('warning');
         toast(`${member.name} checked in — Balance due: ₹${member.balanceFees}`, {
           icon: '⚠️', duration: 5000,
           style: { background: '#b45309', color: '#fff' },
+        });
+      } else if (isInGracePeriod) {
+        playBeep('checkin');
+        toast(`${member.name} checked in — Balance due by ${member.nextPaymentDate}`, {
+          icon: '🕐', duration: 4000,
+          style: { background: '#1d4ed8', color: '#fff' },
         });
       } else {
         playBeep('checkin');
         toast.success(`${member.name} checked in!`);
       }
       setRecentCheckins(prev => [
-        { memberName: member.name, type: 'member', action: 'in', time: checkInTime, balanceDue: hasBalance, balanceFees: member.balanceFees },
+        { memberName: member.name, type: 'member', action: 'in', time: checkInTime, balanceDue: shouldWarnBalance, gracePeriod: isInGracePeriod, balanceFees: member.balanceFees, nextPaymentDate: member.nextPaymentDate },
         ...prev
       ].slice(0, 10));
     }
@@ -267,20 +294,68 @@ export default function CheckinScreen() {
     }
   };
 
+  const handlePopOut = () => {
+    window.open(
+      '/scanner',
+      'gym-scanner',
+      'width=540,height=820,resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no',
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
-      <div className="flex flex-col gap-2 text-center md:text-left">
-        <h1 className="font-h1 text-h1 text-on-surface">Gym Check-in Scanner</h1>
-        <p className="font-body-lg text-body-lg text-on-surface-variant">Scan QR to check in or check out. Works for members and staff.</p>
-      </div>
+      {!isKiosk && (
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="font-h1 text-h1 text-on-surface">Gym Check-in Scanner</h1>
+            <p className="font-body-lg text-body-lg text-on-surface-variant">Scan QR to check in or check out. Works for members and staff.</p>
+            <p className="text-xs text-on-surface-variant/70 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px]">info</span>
+              Keep this tab active — the camera pauses when you switch to another tab.
+            </p>
+          </div>
+          <button
+            onClick={handlePopOut}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors shadow-sm shrink-0"
+            title="Open scanner in a separate floating window so you can use other tabs freely"
+          >
+            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+            Pop Out Scanner
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scanner */}
         <div className="bg-surface-container-lowest p-card-padding rounded-2xl shadow-[0_10px_30px_rgba(207,196,255,0.15)] flex flex-col justify-center min-h-100">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-primary">qr_code_scanner</span>
-            <h3 className="font-h3 text-h3 text-on-surface">QR Scanner</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">qr_code_scanner</span>
+              <h3 className="font-h3 text-h3 text-on-surface">QR Scanner</h3>
+            </div>
+            {/* Live status pill */}
+            <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+              tabVisible
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${tabVisible ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              {tabVisible ? 'Scanning Active' : 'Scanner Paused'}
+            </span>
           </div>
+
+          {/* Paused overlay banner */}
+          {!tabVisible && (
+            <div className="mb-4 bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3 dark:bg-amber-900/20 dark:border-amber-700">
+              <span className="material-symbols-outlined text-amber-500 text-2xl shrink-0 mt-0.5">warning</span>
+              <div>
+                <p className="font-semibold text-amber-800 dark:text-amber-300 text-sm">Scanner Paused</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                  The camera stops when this tab is not active. Switch back to this tab to resume scanning automatically.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-xl overflow-hidden border-2 border-outline-variant/30 mb-6 bg-black flex-1 relative">
             <div id="reader" className="w-full h-full min-h-75"></div>
@@ -331,14 +406,17 @@ export default function CheckinScreen() {
               recentCheckins.map((record, index) => {
                 const isOut = record.action === 'out';
                 const isWarning = record.balanceDue;
+                const isGrace = record.gracePeriod;
                 const isStaff = record.type === 'staff';
                 const bgClass = isWarning
                   ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700'
-                  : isOut
+                  : isGrace
                     ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700'
-                    : 'bg-surface-container-low border-outline-variant/20';
-                const iconColor = isWarning ? 'bg-amber-100 text-amber-700' : isOut ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600';
-                const icon = isWarning ? 'warning' : isOut ? 'logout' : 'login';
+                    : isOut
+                      ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700'
+                      : 'bg-surface-container-low border-outline-variant/20';
+                const iconColor = isWarning ? 'bg-amber-100 text-amber-700' : isGrace ? 'bg-blue-100 text-blue-600' : isOut ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600';
+                const icon = isWarning ? 'warning' : isGrace ? 'schedule' : isOut ? 'logout' : 'login';
                 return (
                   <div key={index} className={`flex items-center justify-between p-4 rounded-xl border shadow-sm ${bgClass}`}>
                     <div className="flex items-center gap-3">
@@ -350,6 +428,7 @@ export default function CheckinScreen() {
                         <span className="text-xs text-on-surface-variant">
                           {isStaff ? `${record.role} · ` : ''}{isOut ? `Check-out${record.duration ? ` · ${record.duration} min` : ''}` : 'Check-in'}
                           {isWarning ? ` · Balance: ₹${record.balanceFees}` : ''}
+                          {isGrace ? ` · Pay by ${record.nextPaymentDate}` : ''}
                         </span>
                       </div>
                     </div>
