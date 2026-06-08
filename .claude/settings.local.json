@@ -24,7 +24,9 @@
       "Bash(xargs grep -l \"discount\")",
       "Bash(dir \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\\\\pages\\\\members\")",
       "Bash(dir \"d:\\\\Devloft-work\\\\deepfitness-erp\\\\src\\\\components\")",
-      "Bash(xargs grep -l \"totalFees\\\\|paidFees\\\\|balanceFees\")"
+      "Bash(xargs grep -l \"totalFees\\\\|paidFees\\\\|balanceFees\")",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)"
     ],
     "additionalDirectories": [
       "d:\\Devloft-work\\deepfitness-erp"

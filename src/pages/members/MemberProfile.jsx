@@ -168,145 +168,106 @@ export default function MemberProfile() {
   };
 
   const downloadReceipt = () => {
-    try {
-      const W = 600, H = 660;
-      const canvas = document.createElement('canvas');
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext('2d');
+    const bal = Number(member?.balanceFees || 0);
+    const subLine = [gymInfo.location, gymInfo.contact].filter(Boolean).join('  &nbsp;|&nbsp;  ');
+    const initials = (gymInfo.name || 'DF')
+      .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
 
-      // Background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, W, H);
+    const html = `
+      <html><head><title>Receipt - ${member?.name || 'Member'}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background:#fff; color:#111827; }
+        .receipt { max-width:600px; margin:0 auto; padding:0; }
 
-      // ── Header band ──
-      ctx.fillStyle = '#4f46e5';
-      ctx.fillRect(0, 0, W, 96);
+        .header { background:#4f46e5; color:#fff; padding:24px 28px; display:flex; align-items:center; gap:16px; }
+        .logo-circle { width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,0.18);
+          display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px;
+          color:#fff; flex-shrink:0; border:2px solid rgba(255,255,255,0.3); }
+        .gym-name { font-size:20px; font-weight:800; letter-spacing:1px; }
+        .gym-sub  { font-size:11px; color:rgba(255,255,255,0.75); margin-top:3px; }
+        .receipt-label { margin-left:auto; text-align:right; }
+        .receipt-label span { display:block; font-size:10px; color:rgba(255,255,255,0.65); font-weight:600; letter-spacing:1px; }
+        .receipt-label .date { font-size:11px; font-weight:400; margin-top:2px; }
 
-      // Logo circle with initials
-      const initials = (gymInfo.name || 'DF')
-        .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.beginPath();
-      ctx.arc(54, 48, 26, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(initials, 54, 53);
+        .body { padding:28px; }
+        .section { margin-bottom:20px; }
+        .section-title { font-size:9px; font-weight:700; color:#6366f1; letter-spacing:1.5px;
+          text-transform:uppercase; margin-bottom:10px; }
+        .row { display:flex; justify-content:space-between; align-items:baseline;
+          padding:8px 0; border-bottom:1px solid #f3f4f6; }
+        .row:last-child { border-bottom:none; }
+        .row .label { font-size:12px; color:#9ca3af; }
+        .row .value { font-size:13px; font-weight:700; color:#111827; }
+        .value.green  { color:#059669; }
+        .value.red    { color:#dc2626; }
+        .bal-row { background:#fff1f2; border-radius:6px; padding:8px 10px; margin:0 -10px; }
 
-      // Gym name
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 19px sans-serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText((gymInfo.name || 'Deep Fitness').toUpperCase(), 92, 40);
+        hr.section-divider { border:none; border-top:1px solid #e5e7eb; margin:4px 0 20px; }
 
-      // Sub-line: location · contact
-      const subLine = [gymInfo.location, gymInfo.contact].filter(Boolean).join('  ·  ');
-      if (subLine) {
-        ctx.font = '11px sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.78)';
-        ctx.fillText(subLine, 92, 60);
-      }
+        .footer { text-align:center; padding:20px 28px 28px; border-top:1px solid #e5e7eb;
+          color:#9ca3af; font-size:10px; line-height:1.8; }
 
-      // RECEIPT label + date (right side)
-      ctx.font = 'bold 10px sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText('MEMBERSHIP RECEIPT', 92, 80);
-      ctx.textAlign = 'right';
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(
-        new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
-        W - 24, 80,
-      );
+        @media print {
+          body * { visibility:hidden; }
+          #receipt-print, #receipt-print * { visibility:visible; }
+          #receipt-print { position:fixed; top:0; left:0; width:100%; }
+        }
+      </style></head>
+      <body><div class="receipt" id="receipt-print">
+        <div class="header">
+          <div class="logo-circle">${initials}</div>
+          <div>
+            <div class="gym-name">${gymInfo.name || 'Deep Fitness'}</div>
+            ${subLine ? `<div class="gym-sub">${subLine}</div>` : ''}
+          </div>
+          <div class="receipt-label">
+            <span>MEMBERSHIP RECEIPT</span>
+            <span class="date">${dateStr}</span>
+          </div>
+        </div>
 
-      // ── Helpers ──
-      const hr = (yy, color = '#e5e7eb') => {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(36, yy);
-        ctx.lineTo(W - 36, yy);
-        ctx.stroke();
-      };
+        <div class="body">
+          <div class="section">
+            <div class="section-title">Member Details</div>
+            <div class="row"><span class="label">Name</span><span class="value">${member?.name || 'N/A'}</span></div>
+            <div class="row"><span class="label">Phone</span><span class="value">${member?.phone || 'N/A'}</span></div>
+          </div>
+          <hr class="section-divider"/>
 
-      let y = 124;
+          <div class="section">
+            <div class="section-title">Plan Details</div>
+            <div class="row"><span class="label">Membership Plan</span><span class="value">${member?.planName || 'N/A'}</span></div>
+            <div class="row"><span class="label">Plan Active From</span><span class="value">${member?.planActiveFrom || 'N/A'}</span></div>
+            <div class="row"><span class="label">Valid Until (Expiry)</span><span class="value">${member?.expiryDate || 'N/A'}</span></div>
+          </div>
+          <hr class="section-divider"/>
 
-      const sectionLabel = (text) => {
-        ctx.font = 'bold 9px sans-serif';
-        ctx.fillStyle = '#6366f1';
-        ctx.textAlign = 'left';
-        ctx.fillText(text.toUpperCase(), 40, y);
-        y += 20;
-      };
+          <div class="section">
+            <div class="section-title">Payment Summary</div>
+            <div class="row"><span class="label">Total Fees</span><span class="value">&#8377;${Number(member?.totalFees || 0).toLocaleString('en-IN')}</span></div>
+            <div class="row"><span class="label">Amount Paid</span><span class="value green">&#8377;${Number(member?.paidFees || 0).toLocaleString('en-IN')}</span></div>
+            <div class="row ${bal > 0 ? 'bal-row' : ''}">
+              <span class="label">Balance Due</span>
+              <span class="value ${bal > 0 ? 'red' : 'green'}">&#8377;${bal.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+        </div>
 
-      const row = (label, value, vColor = '#111827') => {
-        ctx.font = '11px sans-serif';
-        ctx.fillStyle = '#9ca3af';
-        ctx.textAlign = 'left';
-        ctx.fillText(label, 40, y);
-        ctx.font = '13px sans-serif';
-        ctx.fillStyle = vColor;
-        ctx.textAlign = 'right';
-        ctx.fillText(String(value), W - 40, y);
-        ctx.strokeStyle = '#f3f4f6';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(40, y + 11);
-        ctx.lineTo(W - 40, y + 11);
-        ctx.stroke();
-        y += 30;
-      };
+        <div class="footer">
+          Thank you for choosing ${gymInfo.name || 'Deep Fitness'}!<br/>
+          Generated: ${new Date().toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', year: 'numeric', month: 'short', day: 'numeric' })}
+        </div>
+      </div></body></html>
+    `;
 
-      // ── Member Details ──
-      sectionLabel('Member Details');
-      row('Name', member?.name || 'N/A');
-      row('Phone', member?.phone || 'N/A');
-
-      y += 4; hr(y - 6); y += 14;
-
-      // ── Plan Details ──
-      sectionLabel('Plan Details');
-      row('Membership Plan', member?.planName || 'N/A');
-      row('Plan Active From', member?.planActiveFrom || 'N/A');
-      row('Valid Until (Expiry)', member?.expiryDate || 'N/A');
-
-      y += 4; hr(y - 6); y += 14;
-
-      // ── Payment Summary ──
-      sectionLabel('Payment Summary');
-      row('Total Fees', `₹${Number(member?.totalFees || 0).toLocaleString('en-IN')}`);
-      row('Amount Paid', `₹${Number(member?.paidFees || 0).toLocaleString('en-IN')}`, '#059669');
-
-      const bal = Number(member?.balanceFees || 0);
-      if (bal > 0) {
-        ctx.fillStyle = '#fff1f2';
-        ctx.fillRect(36, y - 20, W - 72, 30);
-      }
-      row('Balance Due', `₹${bal.toLocaleString('en-IN')}`, bal > 0 ? '#dc2626' : '#059669');
-
-      y += 8; hr(y - 10); y += 20;
-
-      // ── Footer ──
-      ctx.fillStyle = '#d1d5db';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`Thank you for choosing ${gymInfo.name || 'Deep Fitness'}!`, W / 2, y);
-      ctx.fillText(
-        `Generated: ${new Date().toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', year: 'numeric', month: 'short', day: 'numeric' })}`,
-        W / 2, y + 18,
-      );
-
-      const a = document.createElement('a');
-      a.download = `${(member?.name || 'member').replace(/\s+/g, '-')}-receipt.png`;
-      a.href = canvas.toDataURL('image/png');
-      a.click();
-      toast.success('Receipt downloaded!');
-    } catch (err) {
-      console.error('Receipt generation failed', err);
-      toast.error('Failed to generate receipt');
-    }
+    const win = window.open('', '_blank', 'width=700,height=900');
+    if (!win) { toast.error('Allow popups to download the receipt'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
   };
 
   useEffect(() => {
@@ -517,7 +478,7 @@ export default function MemberProfile() {
             Collect Payment
           </Link>
           <button onClick={downloadReceipt} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5">
-            <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+            <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
             Download Receipt
           </button>
           <button onClick={() => setIsEditing(true)} className="flex-1 md:flex-none bg-surface-container border border-outline-variant/30 text-on-surface px-5 py-2.5 rounded-lg font-medium hover:bg-surface-container-high transition-colors shadow-sm flex items-center justify-center gap-1.5">
