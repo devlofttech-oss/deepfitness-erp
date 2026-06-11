@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCollection, createDocument, updateDocument, getDocument } from '../../firebase/db';
 import toast from 'react-hot-toast';
 
-const CLASS_TYPES = ['Zumba', 'Yoga', 'Dance', 'HIIT', 'Kids Dance', 'Other'];
+const CLASS_TYPES = ['Zumba', 'Yoga', 'Dance', 'HIIT', 'Kids Dance', 'Gym', 'Other'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const EMPTY = {

@@ -39,7 +39,7 @@ export default function SendSMSModal({ phones, defaultMessage = '', recipientLab
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-on-surface-variant">Message</label>
             <textarea
-              rows={4}
+              rows={8}
               value={message}
               onChange={e => setMessage(e.target.value)}
               placeholder="Type your message here..."

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getCollection } from '../../firebase/db';
 import toast from 'react-hot-toast';
 
-const CLASS_TYPES = ['All', 'Zumba', 'Yoga', 'Dance', 'HIIT', 'Kids Dance', 'Other'];
+const CLASS_TYPES = ['All', 'Zumba', 'Yoga', 'Dance', 'HIIT', 'Kids Dance', 'Gym', 'Other'];
 
 const fmt12 = (t) => {
   if (!t) return '';
@@ -17,6 +17,7 @@ const TYPE_META = {
   Dance:     { icon: 'nightlife',        color: 'text-purple-600', bg: 'bg-purple-100' },
   HIIT:      { icon: 'speed',            color: 'text-rose-600',   bg: 'bg-rose-100'   },
   'Kids Dance': { icon: 'child_care',    color: 'text-amber-600',  bg: 'bg-amber-100'  },
+  Gym:       { icon: 'fitness_center',   color: 'text-violet-600', bg: 'bg-violet-100' },
   Other:     { icon: 'sports_gymnastics',color: 'text-blue-600',   bg: 'bg-blue-100'   },
 };
 

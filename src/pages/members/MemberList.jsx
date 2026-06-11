@@ -569,7 +569,7 @@ export default function MemberList() {
                         <button
                           onClick={() => {
                             setSmsMember(member);
-                            setSmsMessage(`Hi ${member.name}! We miss you at Deep Fitness! It's been a few days since your last visit. Come back and continue your fitness journey — we're here for you! 💪 - Deep Fitness`);
+                            setSmsMessage(`Dear ${member.name},\n\nThis is a kind reminder from Deep Fitness Gym.\n\nWe noticed your absence from recent classes. Regular attendance is very important to achieve your fitness goals and maintain consistency.\n\nKindly make sure to attend your upcoming sessions without fail. If you are unable to attend due to any reason, please inform the trainer in advance.\n\nLet's stay consistent and achieve your fitness goals together 💪\n\nThank you\nDeep Fitness Gym`);
                           }}
                           className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors shadow-sm"
                         >

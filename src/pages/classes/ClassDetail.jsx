@@ -17,6 +17,7 @@ const TYPE_META = {
   Dance:     { icon: 'nightlife',        color: 'text-purple-600', bg: 'bg-purple-100' },
   HIIT:      { icon: 'speed',            color: 'text-rose-600',   bg: 'bg-rose-100'   },
   'Kids Dance': { icon: 'child_care',    color: 'text-amber-600',  bg: 'bg-amber-100'  },
+  Gym:       { icon: 'fitness_center',   color: 'text-violet-600', bg: 'bg-violet-100' },
   Other:     { icon: 'sports_gymnastics',color: 'text-blue-600',   bg: 'bg-blue-100'   },
 };
 
@@ -331,7 +332,7 @@ export default function ClassDetail() {
         <SendSMSModal
           phones={phones}
           recipientLabel={`${phones.length} members in ${cls.name}`}
-          defaultMessage={`Hi! This is a message from Deep Fitness regarding your ${cls.name} class.`}
+          defaultMessage={`Dear Students,\n\nThis is a kind reminder from Deep Fitness Gym.\n\nWe noticed your absence from recent classes. Regular attendance is very important to achieve your fitness goals and maintain consistency.\n\nKindly make sure to attend your upcoming sessions without fail. If you are unable to attend due to any reason, please inform the trainer in advance.\n\nLet's stay consistent and achieve your fitness goals together 💪\n\nThank you\nDeep Fitness Gym`}
           onClose={() => setShowSMS(false)}
         />
       )}
