@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogIn } from 'lucide-react'
 import logoImage from '../assets/logo.png'
@@ -13,10 +13,8 @@ export default function Login() {
   const { login, currentUser } = useAuth()
   const navigate = useNavigate()
 
-  // If already logged in, redirect
   if (currentUser) {
-    navigate('/', { replace: true })
-    return null
+    return <Navigate to="/" replace />
   }
 
   const handleSubmit = async (e) => {
