@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getCollection, createDocument, updateDocument } from '../../firebase/db';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 
@@ -45,12 +46,14 @@ const playBeep = (type) => {
 const todayStr = () => new Date().toISOString().split('T')[0];
 
 export default function CheckinScreen({ isKiosk = false }) {
+  const navigate = useNavigate();
   const [members, setMembers] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [recentCheckins, setRecentCheckins] = useState([]);
+  const [expiredMember, setExpiredMember] = useState(null);
   const [tabVisible, setTabVisible] = useState(!document.hidden);
   const [scannerKey, setScannerKey] = useState(0);
   const lastScannedRef = useRef({ id: null, time: 0 });
@@ -174,8 +177,8 @@ export default function CheckinScreen({ isKiosk = false }) {
 
   const processMemberCheckin = async (member) => {
     if (member.status !== 'Active') {
-      playBeep('error');
-      toast.error(`${member.name} - Membership Expired! Please renew.`, { duration: 4000 });
+      playBeep('warning');
+      setExpiredMember(member);
       return;
     }
 
@@ -442,6 +445,49 @@ export default function CheckinScreen({ isKiosk = false }) {
           </div>
         </div>
       </div>
+      {/* Membership Expired Modal */}
+      {expiredMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center gap-5 border-2 border-red-300 dark:border-red-700">
+            <div className="w-24 h-24 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+            </div>
+            <div className="text-center flex flex-col gap-1">
+              <h2 className="font-bold text-2xl text-red-600 dark:text-red-400">Membership Expired</h2>
+              <p className="font-semibold text-xl text-on-surface">{expiredMember.name}</p>
+              {expiredMember.expiryDate && (
+                <p className="text-sm text-on-surface-variant mt-1">
+                  Expired on{' '}
+                  {new Date(expiredMember.expiryDate).toLocaleDateString('en-IN', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                  })}
+                </p>
+              )}
+            </div>
+            <p className="text-sm text-on-surface-variant text-center leading-relaxed">
+              This member's plan has expired. Please renew their membership to allow entry.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setExpiredMember(null)}
+                className="flex-1 py-3 rounded-xl border border-outline-variant/40 text-on-surface font-semibold hover:bg-surface-container transition-colors"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  setExpiredMember(null);
+                  navigate(`/payments/new?memberId=${expiredMember.id}`);
+                }}
+                className="flex-1 py-3 rounded-xl bg-primary text-on-primary font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">autorenew</span>
+                Renew Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
